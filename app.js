@@ -253,15 +253,19 @@ class CardStudyApp {
     }
 
     async loadCurrentCards() {
+        console.log(`[loadCurrentCards] Loading card ${this.currentCardIndex}`);
+
         // Load current card
         const currentCardPath = this.cards[this.shuffledIndices[this.currentCardIndex]];
         this.currentTexture = await this.loadTexture(currentCardPath);
+        console.log(`[loadCurrentCards] Current card loaded: ${currentCardPath}`);
 
         // Load next few cards for the stack effect (in parallel for speed)
         this.nextTextures = [];
         this.cardRotations = [];
         this.cardOffsets = [];
         const cardsToPreload = Math.min(5, this.getRemainingCards());
+        console.log(`[loadCurrentCards] Preloading ${cardsToPreload} stack cards`);
 
         // Build array of promises to load in parallel
         const loadPromises = [];
@@ -285,6 +289,7 @@ class CardStudyApp {
 
         // Wait for all textures to load in parallel
         this.nextTextures = await Promise.all(loadPromises);
+        console.log(`[loadCurrentCards] Stack loaded: ${this.nextTextures.length} cards`);
     }
 
     async loadTexture(path) {
@@ -371,15 +376,30 @@ class CardStudyApp {
 
     async onCardThrowComplete() {
         this.isAnimating = false;
+        console.log(`[onCardThrowComplete] Card thrown, advancing from ${this.currentCardIndex}`);
+        console.log(`[onCardThrowComplete] Stack state before: ${this.nextTextures.length} cards, rotations: ${this.cardRotations.length}, offsets: ${this.cardOffsets.length}`);
 
         // Capture the rotation/offset of the next card BEFORE advancing
         // The next card (currently at index 0 of stack arrays) will become the current card
         const nextCardRotation = this.cardRotations.length > 0 ? this.cardRotations[0] : 0;
-        const nextCardOffset = this.cardOffsets.length > 0 ? this.cardOffsets[0] : { x: 0, y: 0 };
+
+        // Calculate the TOTAL offset including systematic offset
+        // The card at position 0 of stack has stackLayer = 1 (since stackSize - 0 = 1 when it's the front card)
+        let nextCardOffset = { x: 0, y: 0 };
+        if (this.cardOffsets.length > 0) {
+            const randomOffset = this.cardOffsets[0];
+            const systematicOffsetPx = 1 * 8; // stackLayer 1 * 8 pixels
+            nextCardOffset = {
+                x: randomOffset.x + systematicOffsetPx,
+                y: randomOffset.y - systematicOffsetPx
+            };
+        }
+        console.log(`[onCardThrowComplete] Next card rotation: ${nextCardRotation}°, offset: (${nextCardOffset.x.toFixed(1)}, ${nextCardOffset.y.toFixed(1)})px`);
 
         this.currentCardIndex++;
 
         if (this.currentCardIndex >= this.shuffledIndices.length) {
+            console.log(`[onCardThrowComplete] Deck complete, reshuffling`);
             // Reshuffle
             this.resetShuffle();
             await this.loadCurrentCards();
@@ -388,6 +408,7 @@ class CardStudyApp {
 
             // Move the first card from stack to current (it's already loaded!)
             if (this.nextTextures.length > 0) {
+                console.log(`[onCardThrowComplete] Using preloaded card from stack`);
                 this.currentTexture = this.nextTextures[0];
 
                 // Shift arrays: remove first element
@@ -395,9 +416,12 @@ class CardStudyApp {
                 this.cardRotations.shift();
                 this.cardOffsets.shift();
 
+                console.log(`[onCardThrowComplete] Stack state after shift: ${this.nextTextures.length} cards`);
+
                 // Load one new card at the end of the stack (async, don't wait)
                 this.loadNextStackCard();
             } else {
+                console.warn(`[onCardThrowComplete] Stack was empty! Falling back to full load`);
                 // Fallback: no cards in stack, load normally
                 await this.loadCurrentCards();
             }
@@ -406,12 +430,14 @@ class CardStudyApp {
         // Start settle animation only if there was a card in the stack to animate from
         // (Skip on first card or when stack was empty)
         if (nextCardRotation !== 0 || nextCardOffset.x !== 0 || nextCardOffset.y !== 0) {
+            console.log(`[onCardThrowComplete] Starting settle animation`);
             this.currentCardInitialRotation = nextCardRotation;
             this.currentCardInitialOffset = nextCardOffset;
             this.isSettling = true;
             this.settleProgress = 0;
             this.animateSettle();
         } else {
+            console.log(`[onCardThrowComplete] Skipping settle animation, just rendering`);
             // No animation needed, just render
             this.render();
         }
@@ -420,6 +446,8 @@ class CardStudyApp {
     async loadNextStackCard() {
         // Load one additional card at the end of the stack
         const nextIdx = this.currentCardIndex + this.nextTextures.length + 1;
+        console.log(`[loadNextStackCard] Loading card at index ${nextIdx}`);
+
         if (nextIdx < this.shuffledIndices.length) {
             const cardPath = this.cards[this.shuffledIndices[nextIdx]];
             const texture = await this.loadTexture(cardPath);
@@ -432,6 +460,10 @@ class CardStudyApp {
             const offsetX = (Math.random() - 0.5) * 30;
             const offsetY = (Math.random() - 0.5) * 30;
             this.cardOffsets.push({ x: offsetX, y: offsetY });
+
+            console.log(`[loadNextStackCard] Added to stack. New stack size: ${this.nextTextures.length}`);
+        } else {
+            console.log(`[loadNextStackCard] No more cards to load (reached end of deck)`);
         }
     }
 
