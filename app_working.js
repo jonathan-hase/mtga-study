@@ -23,7 +23,7 @@ const CONFIG = {
     // Depth values for WebGPU depth testing
     depthCurrent: 0.1,
     depthStackBase: 0.5,
-    // depthStackIncrement is calculated dynamically as 1/maxStackCards
+    // depthStackIncrement is calculated dynamically to fit all stack cards in range 0.5-1.0
 
     // Persistence
     cookieName: 'cardStudyProgress',
@@ -34,7 +34,7 @@ const CONFIG = {
 
     // Computed values (do not modify directly)
     get depthStackIncrement() {
-        return 1.0 / this.maxStackCards;
+        return (1.0 - this.depthStackBase) / this.maxStackCards;
     }
 };
 
