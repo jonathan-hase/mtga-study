@@ -17,6 +17,14 @@ class CardStudyApp {
         this.cardWidthMM = 63;
         this.cardHeightMM = 88;
 
+        // Stack effect properties
+        this.cardRotations = []; // Random rotations for cards in stack
+        this.cardOffsets = []; // Random offsets for cards in stack
+        this.currentCardInitialRotation = 0; // Initial rotation when card becomes current
+        this.currentCardInitialOffset = { x: 0, y: 0 }; // Initial offset when card becomes current
+        this.isSettling = false; // Whether current card is settling into position
+        this.settleProgress = 1.0; // Progress of settle animation (0 to 1)
+
         // WebGPU resources
         this.device = null;
         this.context = null;
@@ -93,6 +101,8 @@ class CardStudyApp {
                 transform: mat4x4<f32>,
                 opacity: f32,
                 depth: f32,
+                darkenFactor: f32,
+                padding: f32,
             }
 
             @group(0) @binding(0) var<uniform> uniforms: Uniforms;
@@ -129,7 +139,9 @@ class CardStudyApp {
             @fragment
             fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
                 let color = textureSample(textureData, textureSampler, input.texCoord);
-                return vec4<f32>(color.rgb, color.a * uniforms.opacity);
+                // Apply darkening tint to background cards
+                let darkenedColor = color.rgb * uniforms.darkenFactor;
+                return vec4<f32>(darkenedColor, color.a * uniforms.opacity);
             }
         `;
 
@@ -247,6 +259,8 @@ class CardStudyApp {
 
         // Load next few cards for the stack effect
         this.nextTextures = [];
+        this.cardRotations = [];
+        this.cardOffsets = [];
         const cardsToPreload = Math.min(5, this.getRemainingCards());
 
         for (let i = 1; i <= cardsToPreload; i++) {
@@ -255,6 +269,15 @@ class CardStudyApp {
                 const cardPath = this.cards[this.shuffledIndices[idx]];
                 const texture = await this.loadTexture(cardPath);
                 this.nextTextures.push(texture);
+
+                // Generate random rotation for this card (-5 to +5 degrees)
+                const rotation = (Math.random() - 0.5) * 10;
+                this.cardRotations.push(rotation);
+
+                // Generate random offset for this card (2-5 pixels in each direction)
+                const offsetX = (Math.random() - 0.5) * 10;
+                const offsetY = (Math.random() - 0.5) * 10;
+                this.cardOffsets.push({ x: offsetX, y: offsetY });
             }
         }
     }
@@ -353,7 +376,38 @@ class CardStudyApp {
         }
 
         await this.loadCurrentCards();
-        this.render();
+
+        // Start settle animation: card gracefully rotates and moves to center
+        if (this.nextTextures.length > 0) {
+            this.currentCardInitialRotation = this.cardRotations[0] || 0;
+            this.currentCardInitialOffset = this.cardOffsets[0] || { x: 0, y: 0 };
+            this.isSettling = true;
+            this.settleProgress = 0;
+            this.animateSettle();
+        } else {
+            this.render();
+        }
+    }
+
+    animateSettle() {
+        const duration = 300; // ms
+        const startTime = performance.now();
+
+        const animate = (currentTime) => {
+            const elapsed = currentTime - startTime;
+            this.settleProgress = Math.min(elapsed / duration, 1);
+
+            this.render();
+
+            if (this.settleProgress < 1) {
+                requestAnimationFrame(animate);
+            } else {
+                this.isSettling = false;
+                this.settleProgress = 1.0;
+            }
+        };
+
+        requestAnimationFrame(animate);
     }
 
     createTransformMatrix(offsetX, offsetY, scale, rotationDeg, depth) {
@@ -399,11 +453,25 @@ class CardStudyApp {
 
         for (let i = stackSize - 1; i >= 0; i--) {
             if (i < this.nextTextures.length) {
-                const depth = -0.5 - (i * 0.05);
-                const offset = (stackSize - i) * 3;
-                const scale = 0.95 + (i * 0.01);
+                // Depth for layering (further back cards have more negative depth)
+                const depth = -0.001 - (i * 0.001);
 
-                // Calculate visibility: fully visible until last few cards
+                // Convert pixel offset to normalized coordinates
+                const pixelOffset = this.cardOffsets[i];
+                const normalizedOffsetX = (pixelOffset.x / this.canvas.width) * 2;
+                const normalizedOffsetY = (pixelOffset.y / this.canvas.height) * 2;
+
+                // Rotation from stored random rotation
+                const rotation = this.cardRotations[i];
+
+                // Scale: all cards same size (100%)
+                const scale = 1.0;
+
+                // Darken factor: progressively darker for cards further back
+                // Front-most stack card (i=0): 0.85, further back: 0.7, 0.55, 0.4, etc.
+                const darkenFactor = 1.0 - ((stackSize - i) * 0.15);
+
+                // Calculate visibility: hide cards when approaching end
                 let opacity = 1.0;
                 if (remaining <= maxStack) {
                     const cardPosition = stackSize - i;
@@ -414,30 +482,49 @@ class CardStudyApp {
 
                 this.renderCard(
                     this.nextTextures[i],
-                    offset,
-                    -offset,
+                    normalizedOffsetX,
+                    normalizedOffsetY,
                     scale,
-                    0,
+                    rotation,
                     depth,
                     opacity,
+                    darkenFactor,
                     passEncoder
                 );
             }
         }
 
-        // Render current card (with throw animation if active)
+        // Render current card (with throw or settle animation if active)
         if (this.currentTexture) {
             let offsetX = 0;
             let offsetY = 0;
             let rotation = 0;
             let opacity = 1.0;
+            let darken = 1.0;
 
             if (this.isAnimating) {
+                // Throw animation
                 const eased = 1 - Math.pow(1 - this.animationProgress, 3);
                 offsetX = this.throwDirection.x * eased;
                 offsetY = this.throwDirection.y * eased;
                 rotation = this.throwRotation * eased;
                 opacity = 1.0 - this.animationProgress;
+            } else if (this.isSettling) {
+                // Settle animation: smoothly rotate and move from stack position to center
+                const eased = 1 - Math.pow(1 - this.settleProgress, 3); // Ease out cubic
+
+                // Interpolate rotation from initial to 0
+                rotation = this.currentCardInitialRotation * (1 - eased);
+
+                // Interpolate offset from initial to 0
+                const pixelOffsetX = this.currentCardInitialOffset.x * (1 - eased);
+                const pixelOffsetY = this.currentCardInitialOffset.y * (1 - eased);
+                offsetX = (pixelOffsetX / this.canvas.width) * 2;
+                offsetY = (pixelOffsetY / this.canvas.height) * 2;
+
+                // Interpolate darkening from stack value to full brightness
+                const initialDarken = 0.85; // Same as first card in stack
+                darken = initialDarken + (1.0 - initialDarken) * eased;
             }
 
             this.renderCard(
@@ -448,6 +535,7 @@ class CardStudyApp {
                 rotation,
                 0,
                 opacity,
+                darken,
                 passEncoder
             );
         }
@@ -456,7 +544,7 @@ class CardStudyApp {
         this.device.queue.submit([commandEncoder.finish()]);
     }
 
-    renderCard(texture, offsetX, offsetY, scale, rotation, depth, opacity, passEncoder) {
+    renderCard(texture, offsetX, offsetY, scale, rotation, depth, opacity, darkenFactor, passEncoder) {
         const sampler = this.device.createSampler({
             magFilter: 'linear',
             minFilter: 'linear',
@@ -465,7 +553,7 @@ class CardStudyApp {
         const transformMatrix = this.createTransformMatrix(offsetX, offsetY, scale, rotation, depth);
 
         const uniformBuffer = this.device.createBuffer({
-            size: 80, // mat4x4 (64 bytes) + float (4) + float (4) + padding
+            size: 80, // mat4x4 (64 bytes) + float (4) + float (4) + float (4) + float (4)
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
         });
 
@@ -473,6 +561,8 @@ class CardStudyApp {
         uniformData.set(transformMatrix, 0);
         uniformData[16] = opacity;
         uniformData[17] = depth;
+        uniformData[18] = darkenFactor;
+        uniformData[19] = 0; // padding
 
         this.device.queue.writeBuffer(uniformBuffer, 0, uniformData);
 
