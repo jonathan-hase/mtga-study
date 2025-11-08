@@ -559,8 +559,9 @@ class CardStudyApp {
                 // Rotation from stored random rotation
                 const rotation = this.cardRotations[i];
 
-                // Scale: all cards same size (100%)
-                const scale = 1.0;
+                // Scale: stack cards slightly smaller so they peek from behind
+                // Cards further back are smaller
+                const scale = 0.92 - (stackLayer * 0.02); // Front: 0.9, further back: 0.88, 0.86, etc.
 
                 // Darken factor: progressively darker for cards further back
                 // Front-most stack card (i=0): 0.85, further back: 0.7, 0.55, 0.4, etc.
