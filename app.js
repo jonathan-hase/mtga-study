@@ -280,9 +280,9 @@ class CardStudyApp {
                 this.cardRotations.push(rotation);
 
                 // Generate random offset for this card (pixels - will be converted to normalized coords later)
-                // Use MUCH larger offsets to create visible peek effect
-                const offsetX = (Math.random() - 0.5) * 100; // ±50px
-                const offsetY = (Math.random() - 0.5) * 100; // ±50px
+                // Use HUGE offsets to create visible peek effect - cards need to be FAR apart
+                const offsetX = (Math.random() - 0.5) * 400; // ±200px
+                const offsetY = (Math.random() - 0.5) * 400; // ±200px
                 this.cardOffsets.push({ x: offsetX, y: offsetY });
             }
         }
@@ -457,8 +457,8 @@ class CardStudyApp {
             const rotation = (Math.random() - 0.5) * 10;
             this.cardRotations.push(rotation);
 
-            const offsetX = (Math.random() - 0.5) * 100; // ±50px
-            const offsetY = (Math.random() - 0.5) * 100; // ±50px
+            const offsetX = (Math.random() - 0.5) * 400; // ±200px
+            const offsetY = (Math.random() - 0.5) * 400; // ±200px
             this.cardOffsets.push({ x: offsetX, y: offsetY });
 
             console.log(`[loadNextStackCard] Added to stack. New stack size: ${this.nextTextures.length}`);
@@ -560,9 +560,9 @@ class CardStudyApp {
                 // Rotation from stored random rotation
                 const rotation = this.cardRotations[i];
 
-                // Scale: stack cards slightly smaller so they peek from behind
-                // Cards further back are smaller
-                const scale = 0.92 - (stackLayer * 0.02); // Front: 0.9, further back: 0.88, 0.86, etc.
+                // Scale: stack cards MUCH smaller so they peek from behind
+                // Cards further back are progressively smaller
+                const scale = 0.7 - (stackLayer * 0.05); // Front: 0.65, further back: 0.6, 0.55, 0.5, etc.
 
                 // Darken factor: progressively darker for cards further back
                 // Front-most stack card (i=0): 0.85, further back: 0.7, 0.55, 0.4, etc.
