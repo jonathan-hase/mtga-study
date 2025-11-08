@@ -87,6 +87,13 @@ class CardStudyApp {
             alphaMode: 'premultiplied',
         });
 
+        // Create depth texture for depth testing
+        this.depthTexture = this.device.createTexture({
+            size: [this.canvas.width, this.canvas.height],
+            format: 'depth32float',
+            usage: GPUTextureUsage.RENDER_ATTACHMENT,
+        });
+
         await this.createPipeline(presentationFormat);
     }
 
@@ -175,6 +182,11 @@ class CardStudyApp {
             primitive: {
                 topology: 'triangle-list',
             },
+            depthStencil: {
+                format: 'depth32float',
+                depthWriteEnabled: true,
+                depthCompare: 'less',
+            },
         });
     }
 
@@ -203,6 +215,16 @@ class CardStudyApp {
             this.canvas.height = window.innerHeight * dpi;
             this.canvas.style.width = `${window.innerWidth}px`;
             this.canvas.style.height = `${window.innerHeight}px`;
+
+            // Recreate depth texture with new canvas dimensions
+            if (this.device && this.depthTexture) {
+                this.depthTexture.destroy();
+                this.depthTexture = this.device.createTexture({
+                    size: [this.canvas.width, this.canvas.height],
+                    format: 'depth32float',
+                    usage: GPUTextureUsage.RENDER_ATTACHMENT,
+                });
+            }
         };
 
         updateSize();
@@ -519,6 +541,12 @@ class CardStudyApp {
                 loadOp: 'clear',
                 storeOp: 'store',
             }],
+            depthStencilAttachment: {
+                view: this.depthTexture.createView(),
+                depthClearValue: 1.0,
+                depthLoadOp: 'clear',
+                depthStoreOp: 'store',
+            },
         };
 
         const passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
@@ -536,8 +564,9 @@ class CardStudyApp {
         // Render stack from back to front (i = stackSize-1 down to 0)
         for (let i = stackSize - 1; i >= 0; i--) {
             if (i < this.nextTextures.length) {
-                // Depth for layering (further back cards have more negative depth)
-                const depth = -0.001 - (i * 0.001);
+                // Depth for layering (with depth testing: smaller = closer, larger = further)
+                // Stack cards are further back, so they get larger depth values
+                const depth = 0.5 + (i * 0.05); // 0.5, 0.55, 0.6, 0.65, 0.7, etc.
 
                 // Systematic offset: each card layer slightly offset (down-right direction)
                 // Stack position 0 (front of stack) has minimal offset, further back increases
@@ -560,16 +589,14 @@ class CardStudyApp {
                 // Rotation from stored random rotation
                 const rotation = this.cardRotations[i];
 
-                // DEBUG: Render stack cards at FULL SIZE, NO OFFSET, FULL BRIGHTNESS
-                // to test if they CAN be rendered at all
-                const scale = 1.0; // Full size
-                const darkenFactor = 1.0; // Full brightness
+                // Scale: stack cards slightly smaller so they peek from behind
+                // Cards further back are progressively smaller
+                const scale = 0.9 - (stackLayer * 0.02); // Front: 0.88, further back: 0.86, 0.84, etc.
 
-                // OVERRIDE offsets to zero for testing
-                const debugOffsetX = 0;
-                const debugOffsetY = 0;
+                // Darkening: progressive darkening for depth perception
+                const darkenFactor = 1.0 - (stackLayer * 0.15); // 15% darker per layer
 
-                console.log(`[render] Stack card ${i}: offset=(${totalOffsetX.toFixed(1)}, ${totalOffsetY.toFixed(1)})px, normalized=(${normalizedOffsetX.toFixed(3)}, ${normalizedOffsetY.toFixed(3)}), DEBUG_OVERRIDE=(${debugOffsetX}, ${debugOffsetY}), rotation=${rotation.toFixed(1)}°, darken=${darkenFactor.toFixed(2)}`);
+                console.log(`[render] Stack card ${i}: offset=(${totalOffsetX.toFixed(1)}, ${totalOffsetY.toFixed(1)})px, normalized=(${normalizedOffsetX.toFixed(3)}, ${normalizedOffsetY.toFixed(3)}), rotation=${rotation.toFixed(1)}°, scale=${scale.toFixed(2)}, darken=${darkenFactor.toFixed(2)}, depth=${depth.toFixed(2)}`);
 
                 // Calculate visibility: hide cards when approaching end
                 let opacity = 1.0;
@@ -582,8 +609,8 @@ class CardStudyApp {
 
                 this.renderCard(
                     this.nextTextures[i],
-                    debugOffsetX,
-                    debugOffsetY,
+                    normalizedOffsetX,
+                    normalizedOffsetY,
                     scale,
                     rotation,
                     depth,
@@ -636,7 +663,7 @@ class CardStudyApp {
                 offsetY,
                 1.0,
                 rotation,
-                0,
+                0.1, // Current card is closest (smallest depth value)
                 opacity,
                 darken,
                 passEncoder
