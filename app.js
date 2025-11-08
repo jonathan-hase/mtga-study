@@ -560,13 +560,14 @@ class CardStudyApp {
                 // Rotation from stored random rotation
                 const rotation = this.cardRotations[i];
 
-                // Scale: stack cards MUCH smaller so they peek from behind
-                // Cards further back are progressively smaller
-                const scale = 0.7 - (stackLayer * 0.05); // Front: 0.65, further back: 0.6, 0.55, 0.5, etc.
+                // DEBUG: Render stack cards at FULL SIZE, NO OFFSET, FULL BRIGHTNESS
+                // to test if they CAN be rendered at all
+                const scale = 1.0; // Full size
+                const darkenFactor = 1.0; // Full brightness
 
-                // Darken factor: progressively darker for cards further back
-                // Front-most stack card (i=0): 0.85, further back: 0.7, 0.55, 0.4, etc.
-                const darkenFactor = 1.0 - ((stackSize - i) * 0.15);
+                // OVERRIDE offsets to zero for testing
+                const normalizedOffsetX = 0;
+                const normalizedOffsetY = 0;
 
                 console.log(`[render] Stack card ${i}: offset=(${totalOffsetX.toFixed(1)}, ${totalOffsetY.toFixed(1)})px, normalized=(${normalizedOffsetX.toFixed(3)}, ${normalizedOffsetY.toFixed(3)}), rotation=${rotation.toFixed(1)}°, darken=${darkenFactor.toFixed(2)}`);
 
