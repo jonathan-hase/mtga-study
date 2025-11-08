@@ -346,46 +346,62 @@ class CardStudyApp {
     }
 
     setupCanvas() {
-        const updateSize = () => {
-            const dpi = window.devicePixelRatio || 1;
+        // Use ResizeObserver for proper canvas sizing (Safari-compatible)
+        const resizeObserver = new ResizeObserver(entries => {
+            for (const entry of entries) {
+                const dpi = window.devicePixelRatio || 1;
 
-            // Calculate card size in CSS pixels (96 DPI = 1 inch = 25.4mm)
-            // NOTE: Don't multiply by devicePixelRatio here - that's only for canvas resolution
-            const mmToCssPixel = 96 / 25.4;
-            const cardWidthCss = this.cardWidthMM * mmToCssPixel;
-            const cardHeightCss = this.cardHeightMM * mmToCssPixel;
+                // Get canvas size in device pixels
+                // Safari doesn't support devicePixelContentBoxSize, so we fallback
+                const canvasPixelWidth = entry.devicePixelContentBoxSize?.[0].inlineSize ||
+                                        entry.contentBoxSize[0].inlineSize * dpi;
+                const canvasPixelHeight = entry.devicePixelContentBoxSize?.[0].blockSize ||
+                                         entry.contentBoxSize[0].blockSize * dpi;
 
-            // Ensure the card fits on screen with some margin
-            const maxWidth = window.innerWidth * CONFIG.viewportCardLimit;
-            const maxHeight = window.innerHeight * CONFIG.viewportCardLimit;
+                // Get CSS size for card scaling calculations
+                const cssWidth = entry.contentBoxSize[0].inlineSize;
+                const cssHeight = entry.contentBoxSize[0].blockSize;
 
-            let scale = 1;
-            if (cardWidthCss > maxWidth || cardHeightCss > maxHeight) {
-                scale = Math.min(maxWidth / cardWidthCss, maxHeight / cardHeightCss);
+                // Calculate card size in CSS pixels (96 DPI = 1 inch = 25.4mm)
+                const mmToCssPixel = 96 / 25.4;
+                const cardWidthCss = this.cardWidthMM * mmToCssPixel;
+                const cardHeightCss = this.cardHeightMM * mmToCssPixel;
+
+                // Ensure the card fits on screen with some margin (using CSS pixels)
+                const maxWidth = cssWidth * CONFIG.viewportCardLimit;
+                const maxHeight = cssHeight * CONFIG.viewportCardLimit;
+
+                let scale = 1;
+                if (cardWidthCss > maxWidth || cardHeightCss > maxHeight) {
+                    scale = Math.min(maxWidth / cardWidthCss, maxHeight / cardHeightCss);
+                }
+
+                // Final card size in device pixels (matching canvas pixel dimensions)
+                this.cardWidth = cardWidthCss * scale * dpi;
+                this.cardHeight = cardHeightCss * scale * dpi;
+
+                // Set canvas size to device pixel dimensions
+                this.canvas.width = canvasPixelWidth;
+                this.canvas.height = canvasPixelHeight;
+
+                // Recreate depth texture with new canvas dimensions
+                if (this.device && this.depthTexture) {
+                    this.depthTexture.destroy();
+                    this.depthTexture = this.device.createTexture({
+                        size: [this.canvas.width, this.canvas.height],
+                        format: 'depth32float',
+                        usage: GPUTextureUsage.RENDER_ATTACHMENT,
+                    });
+                }
             }
+        });
 
-            // Store card dimensions in CSS pixels, then multiply by DPI for actual rendering
-            this.cardWidth = cardWidthCss * scale * dpi;
-            this.cardHeight = cardHeightCss * scale * dpi;
-
-            this.canvas.width = window.innerWidth * dpi;
-            this.canvas.height = window.innerHeight * dpi;
-            this.canvas.style.width = `${window.innerWidth}px`;
-            this.canvas.style.height = `${window.innerHeight}px`;
-
-            // Recreate depth texture with new canvas dimensions
-            if (this.device && this.depthTexture) {
-                this.depthTexture.destroy();
-                this.depthTexture = this.device.createTexture({
-                    size: [this.canvas.width, this.canvas.height],
-                    format: 'depth32float',
-                    usage: GPUTextureUsage.RENDER_ATTACHMENT,
-                });
-            }
-        };
-
-        updateSize();
-        window.addEventListener('resize', updateSize);
+        try {
+            resizeObserver.observe(this.canvas, { box: 'content-box' });
+        } catch (ex) {
+            // Safari throws on { box: 'content-box' }, fallback to no options
+            resizeObserver.observe(this.canvas);
+        }
     }
 
     async loadCurrentCards() {
