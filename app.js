@@ -524,7 +524,53 @@ class CardStudyApp {
         const passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
         passEncoder.setPipeline(this.pipeline);
 
-        // Render stack of next cards (from back to front)
+        // Render current card FIRST (so stack appears behind it)
+        if (this.currentTexture) {
+            let offsetX = 0;
+            let offsetY = 0;
+            let rotation = 0;
+            let opacity = 1.0;
+            let darken = 1.0;
+
+            if (this.isAnimating) {
+                // Throw animation
+                const eased = 1 - Math.pow(1 - this.animationProgress, 3);
+                offsetX = this.throwDirection.x * eased;
+                offsetY = this.throwDirection.y * eased;
+                rotation = this.throwRotation * eased;
+                opacity = 1.0 - this.animationProgress;
+            } else if (this.isSettling) {
+                // Settle animation: smoothly rotate and move from stack position to center
+                const eased = 1 - Math.pow(1 - this.settleProgress, 3); // Ease out cubic
+
+                // Interpolate rotation from initial to 0
+                rotation = this.currentCardInitialRotation * (1 - eased);
+
+                // Interpolate offset from initial to 0
+                const pixelOffsetX = this.currentCardInitialOffset.x * (1 - eased);
+                const pixelOffsetY = this.currentCardInitialOffset.y * (1 - eased);
+                offsetX = (pixelOffsetX / this.canvas.width) * 2;
+                offsetY = (pixelOffsetY / this.canvas.height) * 2;
+
+                // Interpolate darkening from stack value to full brightness
+                const initialDarken = 0.85; // Same as first card in stack
+                darken = initialDarken + (1.0 - initialDarken) * eased;
+            }
+
+            this.renderCard(
+                this.currentTexture,
+                offsetX,
+                offsetY,
+                1.0,
+                rotation,
+                0,
+                opacity,
+                darken,
+                passEncoder
+            );
+        }
+
+        // Render stack of next cards AFTER current card (from back to front, so they appear behind)
         const remaining = this.getRemainingCards();
         const maxStack = 5;
         const stackSize = Math.min(maxStack, remaining - 1);
@@ -579,52 +625,6 @@ class CardStudyApp {
                     passEncoder
                 );
             }
-        }
-
-        // Render current card (with throw or settle animation if active)
-        if (this.currentTexture) {
-            let offsetX = 0;
-            let offsetY = 0;
-            let rotation = 0;
-            let opacity = 1.0;
-            let darken = 1.0;
-
-            if (this.isAnimating) {
-                // Throw animation
-                const eased = 1 - Math.pow(1 - this.animationProgress, 3);
-                offsetX = this.throwDirection.x * eased;
-                offsetY = this.throwDirection.y * eased;
-                rotation = this.throwRotation * eased;
-                opacity = 1.0 - this.animationProgress;
-            } else if (this.isSettling) {
-                // Settle animation: smoothly rotate and move from stack position to center
-                const eased = 1 - Math.pow(1 - this.settleProgress, 3); // Ease out cubic
-
-                // Interpolate rotation from initial to 0
-                rotation = this.currentCardInitialRotation * (1 - eased);
-
-                // Interpolate offset from initial to 0
-                const pixelOffsetX = this.currentCardInitialOffset.x * (1 - eased);
-                const pixelOffsetY = this.currentCardInitialOffset.y * (1 - eased);
-                offsetX = (pixelOffsetX / this.canvas.width) * 2;
-                offsetY = (pixelOffsetY / this.canvas.height) * 2;
-
-                // Interpolate darkening from stack value to full brightness
-                const initialDarken = 0.85; // Same as first card in stack
-                darken = initialDarken + (1.0 - initialDarken) * eased;
-            }
-
-            this.renderCard(
-                this.currentTexture,
-                offsetX,
-                offsetY,
-                1.0,
-                rotation,
-                0,
-                opacity,
-                darken,
-                passEncoder
-            );
         }
 
         passEncoder.end();
