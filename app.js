@@ -6,7 +6,7 @@ const CONFIG = {
 
     // Visual effects
     maxStackCards: 22,
-    stackRotationRange: 5,      // ±5 degrees
+    stackRotationRange: 10,      // ±5 degrees
     stackOffsetRange: 60,         // ±30 pixels
     stackDarkenPerLayer: 0.05,    // 15% darkening per layer
     viewportCardLimit: 0.9,       // 90% of viewport max
