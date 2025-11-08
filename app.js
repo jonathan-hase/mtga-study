@@ -371,26 +371,6 @@ class CardStudyApp {
         // Random rotation direction
         this.throwRotation = (Math.random() - 0.5) * 720; // -360 to 360 degrees
 
-        // Capture the next card's rotation/offset BEFORE starting animations
-        // This allows settle animation to start immediately
-        const nextCardRotation = this.cardRotations.length > 0 ? this.cardRotations[0] : 0;
-        let nextCardOffset = { x: 0, y: 0 };
-        if (this.cardOffsets.length > 0) {
-            nextCardOffset = {
-                x: this.cardOffsets[0].x,
-                y: this.cardOffsets[0].y
-            };
-        }
-
-        // Start settle animation immediately if there's a next card
-        if (nextCardRotation !== 0 || nextCardOffset.x !== 0 || nextCardOffset.y !== 0) {
-            this.currentCardInitialRotation = nextCardRotation;
-            this.currentCardInitialOffset = nextCardOffset;
-            this.isSettling = true;
-            this.settleProgress = 0;
-            this.animateSettle();
-        }
-
         this.animateThrow();
     }
 
@@ -438,16 +418,10 @@ class CardStudyApp {
 
         // Calculate and save old darken factors BEFORE incrementing index
         // This captures the current stack positions before the shift
-        // IMPORTANT: Preserve null values for newly added cards
         const remaining = this.getRemainingCards();
         const maxStack = 5;
         const oldStackSize = Math.min(maxStack, remaining - 1);
         this.cardDarkenFactors = this.nextTextures.map((_, i) => {
-            // If this card was just added (has null), keep it null (no animation)
-            if (i < this.cardDarkenFactors.length && this.cardDarkenFactors[i] === null) {
-                return null;
-            }
-            // Otherwise calculate the old darken factor for animation
             const oldStackLayer = oldStackSize - i;
             return 1.0 - (oldStackLayer * 0.15);
         });
@@ -484,10 +458,18 @@ class CardStudyApp {
             }
         }
 
-        // Settle animation already started in throwCard()
-        // Just render the final state if no animation was needed
-        if (nextCardRotation === 0 && nextCardOffset.x === 0 && nextCardOffset.y === 0) {
-            console.log(`[onCardThrowComplete] No settle animation needed, just rendering`);
+        // Start settle animation only if there was a card in the stack to animate from
+        // (Skip on first card or when stack was empty)
+        if (nextCardRotation !== 0 || nextCardOffset.x !== 0 || nextCardOffset.y !== 0) {
+            console.log(`[onCardThrowComplete] Starting settle animation`);
+            this.currentCardInitialRotation = nextCardRotation;
+            this.currentCardInitialOffset = nextCardOffset;
+            this.isSettling = true;
+            this.settleProgress = 0;
+            this.animateSettle();
+        } else {
+            console.log(`[onCardThrowComplete] Skipping settle animation, just rendering`);
+            // No animation needed, just render
             this.render();
         }
     }
