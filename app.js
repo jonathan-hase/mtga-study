@@ -550,8 +550,11 @@ class CardStudyApp {
                 const totalOffsetY = pixelOffset.y - systematicOffsetPx; // Negative to go down
 
                 // Convert to normalized coordinates (-1 to 1 range)
-                const normalizedOffsetX = (totalOffsetX / this.canvas.width) * 2;
-                const normalizedOffsetY = (totalOffsetY / this.canvas.height) * 2;
+                // IMPORTANT: Use CSS size, not canvas pixel size (which includes DPI)
+                const cssWidth = parseInt(this.canvas.style.width);
+                const cssHeight = parseInt(this.canvas.style.height);
+                const normalizedOffsetX = (totalOffsetX / cssWidth) * 2;
+                const normalizedOffsetY = (totalOffsetY / cssHeight) * 2;
 
                 // Rotation from stored random rotation
                 const rotation = this.cardRotations[i];
@@ -613,8 +616,11 @@ class CardStudyApp {
                 // Interpolate offset from initial to 0
                 const pixelOffsetX = this.currentCardInitialOffset.x * (1 - eased);
                 const pixelOffsetY = this.currentCardInitialOffset.y * (1 - eased);
-                offsetX = (pixelOffsetX / this.canvas.width) * 2;
-                offsetY = (pixelOffsetY / this.canvas.height) * 2;
+                // Use CSS size, not canvas pixel size (which includes DPI)
+                const cssWidth = parseInt(this.canvas.style.width);
+                const cssHeight = parseInt(this.canvas.style.height);
+                offsetX = (pixelOffsetX / cssWidth) * 2;
+                offsetY = (pixelOffsetY / cssHeight) * 2;
 
                 // Interpolate darkening from stack value to full brightness
                 const initialDarken = 0.85; // Same as first card in stack
