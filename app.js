@@ -293,7 +293,7 @@ class CardStudyApp {
 
                 var output: VertexOutput;
                 let transformed = uniforms.transform * vec4<f32>(pos[vertexIndex], 0.0, 1.0);
-                output.position = vec4<f32>(transformed.xy, uniforms.depth, transformed.w);
+                output.position = vec4<f32>(transformed.xy, uniforms.depth, 1.0);
                 output.texCoord = texCoord[vertexIndex];
                 return output;
             }
