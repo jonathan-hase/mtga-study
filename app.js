@@ -566,10 +566,10 @@ class CardStudyApp {
                 const darkenFactor = 1.0; // Full brightness
 
                 // OVERRIDE offsets to zero for testing
-                const normalizedOffsetX = 0;
-                const normalizedOffsetY = 0;
+                const debugOffsetX = 0;
+                const debugOffsetY = 0;
 
-                console.log(`[render] Stack card ${i}: offset=(${totalOffsetX.toFixed(1)}, ${totalOffsetY.toFixed(1)})px, normalized=(${normalizedOffsetX.toFixed(3)}, ${normalizedOffsetY.toFixed(3)}), rotation=${rotation.toFixed(1)}°, darken=${darkenFactor.toFixed(2)}`);
+                console.log(`[render] Stack card ${i}: offset=(${totalOffsetX.toFixed(1)}, ${totalOffsetY.toFixed(1)})px, normalized=(${normalizedOffsetX.toFixed(3)}, ${normalizedOffsetY.toFixed(3)}), DEBUG_OVERRIDE=(${debugOffsetX}, ${debugOffsetY}), rotation=${rotation.toFixed(1)}°, darken=${darkenFactor.toFixed(2)}`);
 
                 // Calculate visibility: hide cards when approaching end
                 let opacity = 1.0;
@@ -582,8 +582,8 @@ class CardStudyApp {
 
                 this.renderCard(
                     this.nextTextures[i],
-                    normalizedOffsetX,
-                    normalizedOffsetY,
+                    debugOffsetX,
+                    debugOffsetY,
                     scale,
                     rotation,
                     depth,
