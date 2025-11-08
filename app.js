@@ -349,22 +349,24 @@ class CardStudyApp {
         const updateSize = () => {
             const dpi = window.devicePixelRatio || 1;
 
-            // Calculate card size in pixels (96 DPI = 1 inch = 25.4mm)
-            const mmToPixel = (96 / 25.4) * dpi;
-            const cardWidthPx = this.cardWidthMM * mmToPixel;
-            const cardHeightPx = this.cardHeightMM * mmToPixel;
+            // Calculate card size in CSS pixels (96 DPI = 1 inch = 25.4mm)
+            // NOTE: Don't multiply by devicePixelRatio here - that's only for canvas resolution
+            const mmToCssPixel = 96 / 25.4;
+            const cardWidthCss = this.cardWidthMM * mmToCssPixel;
+            const cardHeightCss = this.cardHeightMM * mmToCssPixel;
 
             // Ensure the card fits on screen with some margin
             const maxWidth = window.innerWidth * CONFIG.viewportCardLimit;
             const maxHeight = window.innerHeight * CONFIG.viewportCardLimit;
 
             let scale = 1;
-            if (cardWidthPx > maxWidth || cardHeightPx > maxHeight) {
-                scale = Math.min(maxWidth / cardWidthPx, maxHeight / cardHeightPx);
+            if (cardWidthCss > maxWidth || cardHeightCss > maxHeight) {
+                scale = Math.min(maxWidth / cardWidthCss, maxHeight / cardHeightCss);
             }
 
-            this.cardWidth = cardWidthPx * scale;
-            this.cardHeight = cardHeightPx * scale;
+            // Store card dimensions in CSS pixels, then multiply by DPI for actual rendering
+            this.cardWidth = cardWidthCss * scale * dpi;
+            this.cardHeight = cardHeightCss * scale * dpi;
 
             this.canvas.width = window.innerWidth * dpi;
             this.canvas.height = window.innerHeight * dpi;
