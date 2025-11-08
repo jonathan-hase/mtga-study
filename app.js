@@ -280,9 +280,9 @@ class CardStudyApp {
                 this.cardRotations.push(rotation);
 
                 // Generate random offset for this card (pixels - will be converted to normalized coords later)
-                // Use larger offsets to create visible peek effect: 5-15 pixels in each direction
-                const offsetX = (Math.random() - 0.5) * 30;
-                const offsetY = (Math.random() - 0.5) * 30;
+                // Use MUCH larger offsets to create visible peek effect
+                const offsetX = (Math.random() - 0.5) * 100; // ±50px
+                const offsetY = (Math.random() - 0.5) * 100; // ±50px
                 this.cardOffsets.push({ x: offsetX, y: offsetY });
             }
         }
@@ -388,7 +388,7 @@ class CardStudyApp {
         let nextCardOffset = { x: 0, y: 0 };
         if (this.cardOffsets.length > 0) {
             const randomOffset = this.cardOffsets[0];
-            const systematicOffsetPx = 1 * 8; // stackLayer 1 * 8 pixels
+            const systematicOffsetPx = 1 * 20; // stackLayer 1 * 20 pixels (must match render code)
             nextCardOffset = {
                 x: randomOffset.x + systematicOffsetPx,
                 y: randomOffset.y - systematicOffsetPx
@@ -457,8 +457,8 @@ class CardStudyApp {
             const rotation = (Math.random() - 0.5) * 10;
             this.cardRotations.push(rotation);
 
-            const offsetX = (Math.random() - 0.5) * 30;
-            const offsetY = (Math.random() - 0.5) * 30;
+            const offsetX = (Math.random() - 0.5) * 100; // ±50px
+            const offsetY = (Math.random() - 0.5) * 100; // ±50px
             this.cardOffsets.push({ x: offsetX, y: offsetY });
 
             console.log(`[loadNextStackCard] Added to stack. New stack size: ${this.nextTextures.length}`);
@@ -524,7 +524,67 @@ class CardStudyApp {
         const passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
         passEncoder.setPipeline(this.pipeline);
 
-        // Render current card FIRST (so stack appears behind it)
+        // Render from BACK TO FRONT for proper alpha blending
+        // First render stack cards (furthest back first), then current card (front)
+
+        const remaining = this.getRemainingCards();
+        const maxStack = 5;
+        const stackSize = Math.min(maxStack, remaining - 1);
+
+        // Render stack from back to front (i = stackSize-1 down to 0)
+        for (let i = stackSize - 1; i >= 0; i--) {
+            if (i < this.nextTextures.length) {
+                // Depth for layering (further back cards have more negative depth)
+                const depth = -0.001 - (i * 0.001);
+
+                // Systematic offset: each card layer slightly offset (down-right direction)
+                // Stack position 0 (front of stack) has minimal offset, further back increases
+                const stackLayer = stackSize - i; // 1 for front card, 2 for next, etc.
+                const systematicOffsetPx = stackLayer * 20; // 20 pixels per layer for better visibility
+
+                // Combine systematic offset with random offset
+                const pixelOffset = this.cardOffsets[i];
+                const totalOffsetX = pixelOffset.x + systematicOffsetPx;
+                const totalOffsetY = pixelOffset.y - systematicOffsetPx; // Negative to go down
+
+                // Convert to normalized coordinates (-1 to 1 range)
+                const normalizedOffsetX = (totalOffsetX / this.canvas.width) * 2;
+                const normalizedOffsetY = (totalOffsetY / this.canvas.height) * 2;
+
+                // Rotation from stored random rotation
+                const rotation = this.cardRotations[i];
+
+                // Scale: all cards same size (100%)
+                const scale = 1.0;
+
+                // Darken factor: progressively darker for cards further back
+                // Front-most stack card (i=0): 0.85, further back: 0.7, 0.55, 0.4, etc.
+                const darkenFactor = 1.0 - ((stackSize - i) * 0.15);
+
+                // Calculate visibility: hide cards when approaching end
+                let opacity = 1.0;
+                if (remaining <= maxStack) {
+                    const cardPosition = stackSize - i;
+                    if (cardPosition >= remaining - 1) {
+                        opacity = 0.0;
+                    }
+                }
+
+                this.renderCard(
+                    this.nextTextures[i],
+                    normalizedOffsetX,
+                    normalizedOffsetY,
+                    scale,
+                    rotation,
+                    depth,
+                    opacity,
+                    darkenFactor,
+                    passEncoder
+                );
+            }
+        }
+
+        // Render current card LAST (so it appears in front of stack)
         if (this.currentTexture) {
             let offsetX = 0;
             let offsetY = 0;
@@ -568,63 +628,6 @@ class CardStudyApp {
                 darken,
                 passEncoder
             );
-        }
-
-        // Render stack of next cards AFTER current card (from back to front, so they appear behind)
-        const remaining = this.getRemainingCards();
-        const maxStack = 5;
-        const stackSize = Math.min(maxStack, remaining - 1);
-
-        for (let i = stackSize - 1; i >= 0; i--) {
-            if (i < this.nextTextures.length) {
-                // Depth for layering (further back cards have more negative depth)
-                const depth = -0.001 - (i * 0.001);
-
-                // Systematic offset: each card layer slightly offset (down-right direction)
-                // Stack position 0 (front of stack) has minimal offset, further back increases
-                const stackLayer = stackSize - i; // 1 for front card, 2 for next, etc.
-                const systematicOffsetPx = stackLayer * 8; // 8 pixels per layer
-
-                // Combine systematic offset with random offset
-                const pixelOffset = this.cardOffsets[i];
-                const totalOffsetX = pixelOffset.x + systematicOffsetPx;
-                const totalOffsetY = pixelOffset.y - systematicOffsetPx; // Negative to go down
-
-                // Convert to normalized coordinates (-1 to 1 range)
-                const normalizedOffsetX = (totalOffsetX / this.canvas.width) * 2;
-                const normalizedOffsetY = (totalOffsetY / this.canvas.height) * 2;
-
-                // Rotation from stored random rotation
-                const rotation = this.cardRotations[i];
-
-                // Scale: all cards same size (100%)
-                const scale = 1.0;
-
-                // Darken factor: progressively darker for cards further back
-                // Front-most stack card (i=0): 0.85, further back: 0.7, 0.55, 0.4, etc.
-                const darkenFactor = 1.0 - ((stackSize - i) * 0.15);
-
-                // Calculate visibility: hide cards when approaching end
-                let opacity = 1.0;
-                if (remaining <= maxStack) {
-                    const cardPosition = stackSize - i;
-                    if (cardPosition >= remaining - 1) {
-                        opacity = 0.0;
-                    }
-                }
-
-                this.renderCard(
-                    this.nextTextures[i],
-                    normalizedOffsetX,
-                    normalizedOffsetY,
-                    scale,
-                    rotation,
-                    depth,
-                    opacity,
-                    darkenFactor,
-                    passEncoder
-                );
-            }
         }
 
         passEncoder.end();
