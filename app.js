@@ -6,8 +6,8 @@ const CONFIG = {
 
     // Visual effects
     maxStackCards: 22,
-    stackRotationRange: 5,       // ±5 degrees (range is 10 for -5 to +5)
-    stackOffsetRange: 40,         // ±30 pixels
+    stackRotationRange: 10,       // ±5 degrees (range is 10 for -5 to +5)
+    stackOffsetRange: 60,         // ±30 pixels
     stackDarkenPerLayer: 0.05,    // 5% darkening per layer
     viewportCardLimit: 0.9,       // 90% of viewport max
 
@@ -293,7 +293,7 @@ class CardStudyApp {
 
                 var output: VertexOutput;
                 let transformed = uniforms.transform * vec4<f32>(pos[vertexIndex], 0.0, 1.0);
-                output.position = vec4<f32>(transformed.xy, uniforms.depth, 1.0);
+                output.position = vec4<f32>(transformed.xy, uniforms.depth, transformed.w);
                 output.texCoord = texCoord[vertexIndex];
                 return output;
             }
