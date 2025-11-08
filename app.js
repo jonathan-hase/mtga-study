@@ -524,11 +524,8 @@ class CardStudyApp {
 
         // Calculate and save old darken factors BEFORE incrementing index
         // This captures the current stack positions before the shift
-        const remaining = this.stateManager.getRemainingCards();
-        const maxStack = CONFIG.maxStackCards;
-        const oldStackSize = Math.min(maxStack, remaining - 1);
         this.cardDarkenFactors = this.nextTextures.map((_, i) => {
-            const oldStackLayer = oldStackSize - i;
+            const oldStackLayer = i + 1; // 1 for front card (i=0), 2 for next (i=1), etc.
             return 1.0 - (oldStackLayer * CONFIG.stackDarkenPerLayer);
         });
 
@@ -675,7 +672,7 @@ class CardStudyApp {
 
                 // Use random offsets only - no systematic bias
                 // This allows cards to peek from all directions
-                const stackLayer = stackSize - i; // 1 for front card, 2 for next, etc.
+                const stackLayer = i + 1; // 1 for front card (i=0), 2 for next (i=1), etc.
 
                 // Use only the random offset (no systematic offset to force direction)
                 const pixelOffset = this.cardOffsets[i];
