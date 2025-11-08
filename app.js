@@ -390,8 +390,8 @@ class CardStudyApp {
             const randomOffset = this.cardOffsets[0];
             const systematicOffsetPx = 1 * 20; // stackLayer 1 * 20 pixels (must match render code)
             nextCardOffset = {
-                x: randomOffset.x + systematicOffsetPx,
-                y: randomOffset.y - systematicOffsetPx
+                x: randomOffset.x + systematicOffsetPx + 30,
+                y: randomOffset.y - systematicOffsetPx + 30
             };
         }
         console.log(`[onCardThrowComplete] Next card rotation: ${nextCardRotation}°, offset: (${nextCardOffset.x.toFixed(1)}, ${nextCardOffset.y.toFixed(1)})px`);
@@ -545,9 +545,10 @@ class CardStudyApp {
                 const systematicOffsetPx = stackLayer * 20; // 20 pixels per layer for better visibility
 
                 // Combine systematic offset with random offset
+                // Offset stack cards to bottom-right so they peek from behind current card
                 const pixelOffset = this.cardOffsets[i];
-                const totalOffsetX = pixelOffset.x + systematicOffsetPx;
-                const totalOffsetY = pixelOffset.y - systematicOffsetPx; // Negative to go down
+                const totalOffsetX = pixelOffset.x + systematicOffsetPx + 30; // Extra offset to right
+                const totalOffsetY = pixelOffset.y - systematicOffsetPx + 30; // Extra offset down
 
                 // Convert to normalized coordinates (-1 to 1 range)
                 // IMPORTANT: Use CSS size, not canvas pixel size (which includes DPI)
