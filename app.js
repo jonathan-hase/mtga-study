@@ -74,8 +74,20 @@ class Utils {
         const cos = Math.cos(rad);
         const sin = Math.sin(rad);
 
-        const scaleX = (cardWidth / canvas.width) * 2 * scale;
-        const scaleY = (cardHeight / canvas.height) * 2 * scale;
+        // Use the smaller dimension to maintain aspect ratio (prevent distortion)
+        const canvasAspect = canvas.width / canvas.height;
+        const cardAspect = cardWidth / cardHeight;
+
+        let scaleX, scaleY;
+        if (canvasAspect > cardAspect) {
+            // Canvas is wider than card - scale based on height
+            scaleY = (cardHeight / canvas.height) * 2 * scale;
+            scaleX = scaleY * cardAspect / canvasAspect;
+        } else {
+            // Canvas is taller than card - scale based on width
+            scaleX = (cardWidth / canvas.width) * 2 * scale;
+            scaleY = scaleX / cardAspect * canvasAspect;
+        }
 
         return new Float32Array([
             cos * scaleX, sin * scaleX, 0, 0,
