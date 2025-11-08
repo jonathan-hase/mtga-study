@@ -499,15 +499,18 @@ class CardStudyApp {
         if (nextIdx < this.shuffledIndices.length) {
             const cardPath = this.cards[this.shuffledIndices[nextIdx]];
             const texture = await this.loadTexture(cardPath);
-            this.nextTextures.push(texture);
+
+            // Add new card at the BACK of the stack (index 0)
+            // Array structure: [back/oldest...front/newest]
+            this.nextTextures.unshift(texture);
 
             // Generate random rotation and offset for new card
             const rotation = (Math.random() - 0.5) * 10;
-            this.cardRotations.push(rotation);
+            this.cardRotations.unshift(rotation);
 
             const offsetX = (Math.random() - 0.5) * 60; // ±30px
             const offsetY = (Math.random() - 0.5) * 60; // ±30px
-            this.cardOffsets.push({ x: offsetX, y: offsetY });
+            this.cardOffsets.unshift({ x: offsetX, y: offsetY });
 
             // Don't add to cardDarkenFactors - the array will be shorter than nextTextures
             // This signals that the card has no old brightness to animate from
