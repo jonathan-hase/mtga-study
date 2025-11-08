@@ -275,9 +275,10 @@ class CardStudyApp {
                 const rotation = (Math.random() - 0.5) * 10;
                 this.cardRotations.push(rotation);
 
-                // Generate random offset for this card (2-5 pixels in each direction)
-                const offsetX = (Math.random() - 0.5) * 10;
-                const offsetY = (Math.random() - 0.5) * 10;
+                // Generate random offset for this card (pixels - will be converted to normalized coords later)
+                // Use larger offsets to create visible peek effect: 5-15 pixels in each direction
+                const offsetX = (Math.random() - 0.5) * 30;
+                const offsetY = (Math.random() - 0.5) * 30;
                 this.cardOffsets.push({ x: offsetX, y: offsetY });
             }
         }
@@ -381,11 +382,26 @@ class CardStudyApp {
         if (this.currentCardIndex >= this.shuffledIndices.length) {
             // Reshuffle
             this.resetShuffle();
+            await this.loadCurrentCards();
         } else {
             this.saveShuffleState();
-        }
 
-        await this.loadCurrentCards();
+            // Move the first card from stack to current (it's already loaded!)
+            if (this.nextTextures.length > 0) {
+                this.currentTexture = this.nextTextures[0];
+
+                // Shift arrays: remove first element
+                this.nextTextures.shift();
+                this.cardRotations.shift();
+                this.cardOffsets.shift();
+
+                // Load one new card at the end of the stack (async, don't wait)
+                this.loadNextStackCard();
+            } else {
+                // Fallback: no cards in stack, load normally
+                await this.loadCurrentCards();
+            }
+        }
 
         // Start settle animation only if there was a card in the stack to animate from
         // (Skip on first card or when stack was empty)
@@ -398,6 +414,24 @@ class CardStudyApp {
         } else {
             // No animation needed, just render
             this.render();
+        }
+    }
+
+    async loadNextStackCard() {
+        // Load one additional card at the end of the stack
+        const nextIdx = this.currentCardIndex + this.nextTextures.length + 1;
+        if (nextIdx < this.shuffledIndices.length) {
+            const cardPath = this.cards[this.shuffledIndices[nextIdx]];
+            const texture = await this.loadTexture(cardPath);
+            this.nextTextures.push(texture);
+
+            // Generate random rotation and offset for new card
+            const rotation = (Math.random() - 0.5) * 10;
+            this.cardRotations.push(rotation);
+
+            const offsetX = (Math.random() - 0.5) * 30;
+            const offsetY = (Math.random() - 0.5) * 30;
+            this.cardOffsets.push({ x: offsetX, y: offsetY });
         }
     }
 
@@ -468,10 +502,19 @@ class CardStudyApp {
                 // Depth for layering (further back cards have more negative depth)
                 const depth = -0.001 - (i * 0.001);
 
-                // Convert pixel offset to normalized coordinates
+                // Systematic offset: each card layer slightly offset (down-right direction)
+                // Stack position 0 (front of stack) has minimal offset, further back increases
+                const stackLayer = stackSize - i; // 1 for front card, 2 for next, etc.
+                const systematicOffsetPx = stackLayer * 8; // 8 pixels per layer
+
+                // Combine systematic offset with random offset
                 const pixelOffset = this.cardOffsets[i];
-                const normalizedOffsetX = (pixelOffset.x / this.canvas.width) * 2;
-                const normalizedOffsetY = (pixelOffset.y / this.canvas.height) * 2;
+                const totalOffsetX = pixelOffset.x + systematicOffsetPx;
+                const totalOffsetY = pixelOffset.y - systematicOffsetPx; // Negative to go down
+
+                // Convert to normalized coordinates (-1 to 1 range)
+                const normalizedOffsetX = (totalOffsetX / this.canvas.width) * 2;
+                const normalizedOffsetY = (totalOffsetY / this.canvas.height) * 2;
 
                 // Rotation from stored random rotation
                 const rotation = this.cardRotations[i];
