@@ -438,19 +438,18 @@ class CardStudyApp {
 
         // Calculate and save old darken factors BEFORE incrementing index
         // This captures the current stack positions before the shift
-        // IMPORTANT: Preserve null values for newly added cards
         const remaining = this.getRemainingCards();
         const maxStack = 5;
         const oldStackSize = Math.min(maxStack, remaining - 1);
-        this.cardDarkenFactors = this.nextTextures.map((_, i) => {
-            // If this card was just added (has null), keep it null (no animation)
-            if (i < this.cardDarkenFactors.length && this.cardDarkenFactors[i] === null) {
-                return null;
-            }
-            // Otherwise calculate the old darken factor for animation
+
+        // Store old darken factors for ALL cards based on their CURRENT position
+        // New cards (marked null) should get their current visual brightness stored
+        const savedDarkenFactors = this.nextTextures.map((_, i) => {
             const oldStackLayer = oldStackSize - i;
             return 1.0 - (oldStackLayer * 0.15);
         });
+
+        this.cardDarkenFactors = savedDarkenFactors;
 
         this.currentCardIndex++;
 
@@ -510,9 +509,8 @@ class CardStudyApp {
             const offsetY = (Math.random() - 0.5) * 60; // ±30px
             this.cardOffsets.push({ x: offsetX, y: offsetY });
 
-            // New cards have no old brightness to animate from, so mark as null
-            // They will appear at their correct darkness immediately
-            this.cardDarkenFactors.push(null);
+            // Don't add to cardDarkenFactors - the array will be shorter than nextTextures
+            // This signals that the card has no old brightness to animate from
 
             console.log(`[loadNextStackCard] Added to stack. New stack size: ${this.nextTextures.length}`);
         } else {
@@ -623,7 +621,7 @@ class CardStudyApp {
 
                 // Darkening: animate brightness changes when cards move in stack
                 let darkenFactor;
-                if (this.isSettling && i < this.cardDarkenFactors.length && this.cardDarkenFactors[i] !== null) {
+                if (this.isSettling && i < this.cardDarkenFactors.length) {
                     // Animate from old brightness to new brightness (card was in stack before)
                     const oldDarken = this.cardDarkenFactors[i];
                     const newDarken = 1.0 - (stackLayer * 0.15);
