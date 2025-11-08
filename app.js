@@ -374,9 +374,10 @@ class CardStudyApp {
             const cardWidthCss = this.cardWidthMM * mmToCssPixel;
             const cardHeightCss = this.cardHeightMM * mmToCssPixel;
 
-            // Ensure the card fits on screen with some margin
-            const maxWidth = window.innerWidth * CONFIG.viewportCardLimit;
-            const maxHeight = window.innerHeight * CONFIG.viewportCardLimit;
+            // Ensure the card fits on screen with minimum margin on all sides
+            const margin = CONFIG.minCardMargin;
+            const maxWidth = window.innerWidth - (margin * 2);
+            const maxHeight = window.innerHeight - (margin * 2);
 
             let scale = 1;
             if (cardWidthCss > maxWidth || cardHeightCss > maxHeight) {
