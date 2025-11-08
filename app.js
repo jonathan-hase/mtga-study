@@ -384,9 +384,9 @@ class CardStudyApp {
                 scale = Math.min(maxWidth / cardWidthCss, maxHeight / cardHeightCss);
             }
 
-            // Store card dimensions in CSS pixels, then multiply by DPI for actual rendering
-            this.cardWidth = cardWidthCss * scale * dpi;
-            this.cardHeight = cardHeightCss * scale * dpi;
+            // Store card dimensions in CSS pixels (DPI conversion happens in transform matrix)
+            this.cardWidth = cardWidthCss * scale;
+            this.cardHeight = cardHeightCss * scale;
 
             this.canvas.width = window.innerWidth * dpi;
             this.canvas.height = window.innerHeight * dpi;
