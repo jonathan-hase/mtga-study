@@ -6,8 +6,8 @@ const CONFIG = {
 
     // Visual effects
     maxStackCards: 22,
-    stackRotationRange: 10,       // ±5 degrees (range is 10 for -5 to +5)
-    stackOffsetRange: 60,         // ±30 pixels
+    stackRotationRange: 5,       // ±5 degrees (range is 10 for -5 to +5)
+    stackOffsetRange: 40,         // ±30 pixels
     stackDarkenPerLayer: 0.05,    // 5% darkening per layer
     viewportCardLimit: 0.9,       // 90% of viewport max
 
@@ -69,11 +69,8 @@ class Utils {
         const cos = Math.cos(rad);
         const sin = Math.sin(rad);
 
-        // Calculate aspect ratio correction to maintain card proportions
-        const canvasAspect = canvas.width / canvas.height;
-
         const scaleX = (cardWidth / canvas.width) * 2 * scale;
-        const scaleY = (cardHeight / canvas.height) * 2 * scale * canvasAspect;
+        const scaleY = (cardHeight / canvas.height) * 2 * scale;
 
         return new Float32Array([
             cos * scaleX, sin * scaleX, 0, 0,
