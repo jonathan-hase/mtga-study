@@ -531,6 +531,8 @@ class CardStudyApp {
         const maxStack = 5;
         const stackSize = Math.min(maxStack, remaining - 1);
 
+        console.log(`[render] Rendering ${stackSize} stack cards from ${this.nextTextures.length} available`);
+
         // Render stack from back to front (i = stackSize-1 down to 0)
         for (let i = stackSize - 1; i >= 0; i--) {
             if (i < this.nextTextures.length) {
@@ -560,6 +562,8 @@ class CardStudyApp {
                 // Darken factor: progressively darker for cards further back
                 // Front-most stack card (i=0): 0.85, further back: 0.7, 0.55, 0.4, etc.
                 const darkenFactor = 1.0 - ((stackSize - i) * 0.15);
+
+                console.log(`[render] Stack card ${i}: offset=(${totalOffsetX.toFixed(1)}, ${totalOffsetY.toFixed(1)})px, normalized=(${normalizedOffsetX.toFixed(3)}, ${normalizedOffsetY.toFixed(3)}), rotation=${rotation.toFixed(1)}°, darken=${darkenFactor.toFixed(2)}`);
 
                 // Calculate visibility: hide cards when approaching end
                 let opacity = 1.0;
