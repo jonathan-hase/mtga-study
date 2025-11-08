@@ -388,6 +388,10 @@ class CardStudyApp {
             this.cardWidth = cardWidthCss * scale;
             this.cardHeight = cardHeightCss * scale;
 
+            // Store canvas CSS dimensions for transform calculation
+            this.canvasWidthCss = window.innerWidth;
+            this.canvasHeightCss = window.innerHeight;
+
             this.canvas.width = window.innerWidth * dpi;
             this.canvas.height = window.innerHeight * dpi;
             this.canvas.style.width = `${window.innerWidth}px`;
@@ -648,8 +652,13 @@ class CardStudyApp {
     }
 
     createTransformMatrix(offsetX, offsetY, scale, rotationDeg, depth) {
+        // Create a pseudo-canvas object with CSS dimensions for correct transform calculation
+        const cssCanvas = {
+            width: this.canvasWidthCss,
+            height: this.canvasHeightCss
+        };
         return Utils.createTransformMatrix(
-            this.canvas, this.cardWidth, this.cardHeight,
+            cssCanvas, this.cardWidth, this.cardHeight,
             offsetX, offsetY, scale, rotationDeg, depth
         );
     }
