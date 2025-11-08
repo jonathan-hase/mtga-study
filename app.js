@@ -6,10 +6,10 @@ const CONFIG = {
 
     // Visual effects
     maxStackCards: 22,
-    stackRotationRange: 10,      // ±5 degrees
-    stackOffsetRange: 60,         // ±30 pixels
-    stackDarkenPerLayer: 0.05,    // 15% darkening per layer
-    viewportCardLimit: 0.9,       // 90% of viewport max
+    stackRotationRange: 5,      // ±5 degrees
+    stackOffsetRange: 10,         // ±30 pixels
+    stackDarkenPerLayer: 0.05,    // 5% darkening per layer
+    minCardMargin: 5,             // Minimum margin in pixels around card (all sides)
 
     // Animation timings (milliseconds)
     throwDuration: 500,
@@ -23,14 +23,19 @@ const CONFIG = {
     // Depth values for WebGPU depth testing
     depthCurrent: 0.1,
     depthStackBase: 0.5,
-    depthStackIncrement: 0.05,
+    // depthStackIncrement is calculated dynamically as 1/maxStackCards
 
     // Persistence
     cookieName: 'cardStudyProgress',
     cookieExpireDays: 365,
 
     // Preloading
-    preloadCount: 5
+    preloadCount: 5,
+
+    // Computed values (do not modify directly)
+    get depthStackIncrement() {
+        return 1.0 / this.maxStackCards;
+    }
 };
 
 // ==================== UTILITY FUNCTIONS ====================

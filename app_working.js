@@ -6,10 +6,10 @@ const CONFIG = {
 
     // Visual effects
     maxStackCards: 22,
-    stackRotationRange: 10,       // ±5 degrees (range is 10 for -5 to +5)
+    stackRotationRange: 10,      // ±5 degrees
     stackOffsetRange: 60,         // ±30 pixels
     stackDarkenPerLayer: 0.05,    // 5% darkening per layer
-    viewportCardLimit: 0.9,       // 90% of viewport max
+    minCardMargin: 5,             // Minimum margin in pixels around card (all sides)
 
     // Animation timings (milliseconds)
     throwDuration: 500,
@@ -23,14 +23,19 @@ const CONFIG = {
     // Depth values for WebGPU depth testing
     depthCurrent: 0.1,
     depthStackBase: 0.5,
-    // depthStackIncrement is calculated dynamically based on maxStackCards
+    // depthStackIncrement is calculated dynamically as 1/maxStackCards
 
     // Persistence
     cookieName: 'cardStudyProgress',
     cookieExpireDays: 365,
 
     // Preloading
-    preloadCount: 22
+    preloadCount: 5,
+
+    // Computed values (do not modify directly)
+    get depthStackIncrement() {
+        return 1.0 / this.maxStackCards;
+    }
 };
 
 // ==================== UTILITY FUNCTIONS ====================
@@ -293,7 +298,7 @@ class CardStudyApp {
 
                 var output: VertexOutput;
                 let transformed = uniforms.transform * vec4<f32>(pos[vertexIndex], 0.0, 1.0);
-                output.position = vec4<f32>(transformed.xy, uniforms.depth, 1.0);
+                output.position = vec4<f32>(transformed.xy, uniforms.depth, transformed.w);
                 output.texCoord = texCoord[vertexIndex];
                 return output;
             }
@@ -355,9 +360,10 @@ class CardStudyApp {
             const cardWidthCss = this.cardWidthMM * mmToCssPixel;
             const cardHeightCss = this.cardHeightMM * mmToCssPixel;
 
-            // Ensure the card fits on screen with some margin
-            const maxWidth = window.innerWidth * CONFIG.viewportCardLimit;
-            const maxHeight = window.innerHeight * CONFIG.viewportCardLimit;
+            // Ensure the card fits on screen with minimum margin on all sides
+            const margin = CONFIG.minCardMargin;
+            const maxWidth = window.innerWidth - (margin * 2);
+            const maxHeight = window.innerHeight - (margin * 2);
 
             let scale = 1;
             if (cardWidthCss > maxWidth || cardHeightCss > maxHeight) {
@@ -665,16 +671,12 @@ class CardStudyApp {
 
         console.log(`[render] Rendering ${stackSize} stack cards from ${this.nextTextures.length} available`);
 
-        // Calculate depth increment dynamically based on max stack size
-        // Available depth range: 1.0 (far) - depthStackBase (0.5) - buffer (0.05) = 0.45
-        const depthStackIncrement = (1.0 - CONFIG.depthStackBase - 0.05) / CONFIG.maxStackCards;
-
         // Render stack from back to front (i = stackSize-1 down to 0)
         for (let i = stackSize - 1; i >= 0; i--) {
             if (i < this.nextTextures.length) {
                 // Depth for layering (with depth testing: smaller = closer, larger = further)
                 // Stack cards are further back, so they get larger depth values
-                const depth = CONFIG.depthStackBase + (i * depthStackIncrement);
+                const depth = CONFIG.depthStackBase + (i * CONFIG.depthStackIncrement);
 
                 // Use random offsets only - no systematic bias
                 // This allows cards to peek from all directions
