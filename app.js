@@ -20,6 +20,7 @@ class CardStudyApp {
         // Stack effect properties
         this.cardRotations = []; // Random rotations for cards in stack
         this.cardOffsets = []; // Random offsets for cards in stack
+        this.cardDarkenFactors = []; // Previous darken factors for animating brightness changes
         this.currentCardInitialRotation = 0; // Initial rotation when card becomes current
         this.currentCardInitialOffset = { x: 0, y: 0 }; // Initial offset when card becomes current
         this.isSettling = false; // Whether current card is settling into position
@@ -302,9 +303,9 @@ class CardStudyApp {
                 this.cardRotations.push(rotation);
 
                 // Generate random offset for this card (pixels - will be converted to normalized coords later)
-                // Use HUGE offsets to create visible peek effect - cards need to be FAR apart
-                const offsetX = (Math.random() - 0.5) * 400; // ±200px
-                const offsetY = (Math.random() - 0.5) * 400; // ±200px
+                // Subtle offsets to create peek effect
+                const offsetX = (Math.random() - 0.5) * 60; // ±30px
+                const offsetY = (Math.random() - 0.5) * 60; // ±30px
                 this.cardOffsets.push({ x: offsetX, y: offsetY });
             }
         }
@@ -433,6 +434,16 @@ class CardStudyApp {
                 console.log(`[onCardThrowComplete] Using preloaded card from stack`);
                 this.currentTexture = this.nextTextures[0];
 
+                // Calculate and save old darken factors BEFORE shifting
+                // This allows us to animate from old brightness to new brightness
+                const remaining = this.getRemainingCards();
+                const maxStack = 5;
+                const oldStackSize = Math.min(maxStack, remaining - 1);
+                this.cardDarkenFactors = this.nextTextures.map((_, i) => {
+                    const oldStackLayer = oldStackSize - i;
+                    return 1.0 - (oldStackLayer * 0.15);
+                });
+
                 // Shift arrays: remove first element
                 this.nextTextures.shift();
                 this.cardRotations.shift();
@@ -479,8 +490,8 @@ class CardStudyApp {
             const rotation = (Math.random() - 0.5) * 10;
             this.cardRotations.push(rotation);
 
-            const offsetX = (Math.random() - 0.5) * 400; // ±200px
-            const offsetY = (Math.random() - 0.5) * 400; // ±200px
+            const offsetX = (Math.random() - 0.5) * 60; // ±30px
+            const offsetY = (Math.random() - 0.5) * 60; // ±30px
             this.cardOffsets.push({ x: offsetX, y: offsetY });
 
             console.log(`[loadNextStackCard] Added to stack. New stack size: ${this.nextTextures.length}`);
@@ -593,8 +604,18 @@ class CardStudyApp {
                 // Cards further back are progressively smaller
                 const scale = 0.9 - (stackLayer * 0.02); // Front: 0.88, further back: 0.86, 0.84, etc.
 
-                // Darkening: progressive darkening for depth perception
-                const darkenFactor = 1.0 - (stackLayer * 0.15); // 15% darker per layer
+                // Darkening: animate brightness changes when cards move in stack
+                let darkenFactor;
+                if (this.isSettling && i < this.cardDarkenFactors.length) {
+                    // Animate from old brightness to new brightness
+                    const oldDarken = this.cardDarkenFactors[i];
+                    const newDarken = 1.0 - (stackLayer * 0.15);
+                    const eased = 1 - Math.pow(1 - this.settleProgress, 3); // Ease out cubic
+                    darkenFactor = oldDarken + (newDarken - oldDarken) * eased;
+                } else {
+                    // Static darkening based on stack position
+                    darkenFactor = 1.0 - (stackLayer * 0.15);
+                }
 
                 console.log(`[render] Stack card ${i}: offset=(${totalOffsetX.toFixed(1)}, ${totalOffsetY.toFixed(1)})px, normalized=(${normalizedOffsetX.toFixed(3)}, ${normalizedOffsetY.toFixed(3)}), rotation=${rotation.toFixed(1)}°, scale=${scale.toFixed(2)}, darken=${darkenFactor.toFixed(2)}, depth=${depth.toFixed(2)}`);
 
