@@ -69,8 +69,11 @@ class Utils {
         const cos = Math.cos(rad);
         const sin = Math.sin(rad);
 
+        // Calculate aspect ratio correction to maintain card proportions
+        const canvasAspect = canvas.width / canvas.height;
+
         const scaleX = (cardWidth / canvas.width) * 2 * scale;
-        const scaleY = (cardHeight / canvas.height) * 2 * scale;
+        const scaleY = (cardHeight / canvas.height) * 2 * scale * canvasAspect;
 
         return new Float32Array([
             cos * scaleX, sin * scaleX, 0, 0,
