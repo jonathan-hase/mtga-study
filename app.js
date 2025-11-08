@@ -257,18 +257,19 @@ class CardStudyApp {
         const currentCardPath = this.cards[this.shuffledIndices[this.currentCardIndex]];
         this.currentTexture = await this.loadTexture(currentCardPath);
 
-        // Load next few cards for the stack effect
+        // Load next few cards for the stack effect (in parallel for speed)
         this.nextTextures = [];
         this.cardRotations = [];
         this.cardOffsets = [];
         const cardsToPreload = Math.min(5, this.getRemainingCards());
 
+        // Build array of promises to load in parallel
+        const loadPromises = [];
         for (let i = 1; i <= cardsToPreload; i++) {
             const idx = this.currentCardIndex + i;
             if (idx < this.shuffledIndices.length) {
                 const cardPath = this.cards[this.shuffledIndices[idx]];
-                const texture = await this.loadTexture(cardPath);
-                this.nextTextures.push(texture);
+                loadPromises.push(this.loadTexture(cardPath));
 
                 // Generate random rotation for this card (-5 to +5 degrees)
                 const rotation = (Math.random() - 0.5) * 10;
@@ -280,6 +281,9 @@ class CardStudyApp {
                 this.cardOffsets.push({ x: offsetX, y: offsetY });
             }
         }
+
+        // Wait for all textures to load in parallel
+        this.nextTextures = await Promise.all(loadPromises);
     }
 
     async loadTexture(path) {
@@ -366,6 +370,12 @@ class CardStudyApp {
 
     async onCardThrowComplete() {
         this.isAnimating = false;
+
+        // Capture the rotation/offset of the next card BEFORE advancing
+        // The next card (currently at index 0 of stack arrays) will become the current card
+        const nextCardRotation = this.cardRotations.length > 0 ? this.cardRotations[0] : 0;
+        const nextCardOffset = this.cardOffsets.length > 0 ? this.cardOffsets[0] : { x: 0, y: 0 };
+
         this.currentCardIndex++;
 
         if (this.currentCardIndex >= this.shuffledIndices.length) {
@@ -377,14 +387,16 @@ class CardStudyApp {
 
         await this.loadCurrentCards();
 
-        // Start settle animation: card gracefully rotates and moves to center
-        if (this.nextTextures.length > 0) {
-            this.currentCardInitialRotation = this.cardRotations[0] || 0;
-            this.currentCardInitialOffset = this.cardOffsets[0] || { x: 0, y: 0 };
+        // Start settle animation only if there was a card in the stack to animate from
+        // (Skip on first card or when stack was empty)
+        if (nextCardRotation !== 0 || nextCardOffset.x !== 0 || nextCardOffset.y !== 0) {
+            this.currentCardInitialRotation = nextCardRotation;
+            this.currentCardInitialOffset = nextCardOffset;
             this.isSettling = true;
             this.settleProgress = 0;
             this.animateSettle();
         } else {
+            // No animation needed, just render
             this.render();
         }
     }
