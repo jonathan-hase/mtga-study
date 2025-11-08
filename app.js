@@ -6,8 +6,8 @@ const CONFIG = {
 
     // Visual effects
     maxStackCards: 22,
-    stackRotationRange: 5,      // ±5 degrees
-    stackOffsetRange: 10,         // ±30 pixels
+    stackRotationRange: 10,      // ±5 degrees
+    stackOffsetRange: 60,         // ±30 pixels
     stackDarkenPerLayer: 0.05,    // 5% darkening per layer
     minCardMargin: 5,             // Minimum margin in pixels around card (all sides)
 
