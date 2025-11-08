@@ -406,18 +406,25 @@ class CardStudyApp {
         // The next card (currently at index 0 of stack arrays) will become the current card
         const nextCardRotation = this.cardRotations.length > 0 ? this.cardRotations[0] : 0;
 
-        // Calculate the TOTAL offset including systematic offset
-        // The card at position 0 of stack has stackLayer = 1 (since stackSize - 0 = 1 when it's the front card)
+        // Use only the random offset (no systematic offset)
         let nextCardOffset = { x: 0, y: 0 };
         if (this.cardOffsets.length > 0) {
-            const randomOffset = this.cardOffsets[0];
-            const systematicOffsetPx = 1 * 20; // stackLayer 1 * 20 pixels (must match render code)
             nextCardOffset = {
-                x: randomOffset.x + systematicOffsetPx + 30,
-                y: randomOffset.y - systematicOffsetPx + 30
+                x: this.cardOffsets[0].x,
+                y: this.cardOffsets[0].y
             };
         }
         console.log(`[onCardThrowComplete] Next card rotation: ${nextCardRotation}°, offset: (${nextCardOffset.x.toFixed(1)}, ${nextCardOffset.y.toFixed(1)})px`);
+
+        // Calculate and save old darken factors BEFORE incrementing index
+        // This captures the current stack positions before the shift
+        const remaining = this.getRemainingCards();
+        const maxStack = 5;
+        const oldStackSize = Math.min(maxStack, remaining - 1);
+        this.cardDarkenFactors = this.nextTextures.map((_, i) => {
+            const oldStackLayer = oldStackSize - i;
+            return 1.0 - (oldStackLayer * 0.15);
+        });
 
         this.currentCardIndex++;
 
@@ -434,20 +441,11 @@ class CardStudyApp {
                 console.log(`[onCardThrowComplete] Using preloaded card from stack`);
                 this.currentTexture = this.nextTextures[0];
 
-                // Calculate and save old darken factors BEFORE shifting
-                // This allows us to animate from old brightness to new brightness
-                const remaining = this.getRemainingCards();
-                const maxStack = 5;
-                const oldStackSize = Math.min(maxStack, remaining - 1);
-                this.cardDarkenFactors = this.nextTextures.map((_, i) => {
-                    const oldStackLayer = oldStackSize - i;
-                    return 1.0 - (oldStackLayer * 0.15);
-                });
-
-                // Shift arrays: remove first element
+                // Shift all arrays including darken factors
                 this.nextTextures.shift();
                 this.cardRotations.shift();
                 this.cardOffsets.shift();
+                this.cardDarkenFactors.shift(); // Remove the front card's old darken factor
 
                 console.log(`[onCardThrowComplete] Stack state after shift: ${this.nextTextures.length} cards`);
 
@@ -493,6 +491,10 @@ class CardStudyApp {
             const offsetX = (Math.random() - 0.5) * 60; // ±30px
             const offsetY = (Math.random() - 0.5) * 60; // ±30px
             this.cardOffsets.push({ x: offsetX, y: offsetY });
+
+            // New cards have no old brightness to animate from, so mark as null
+            // They will appear at their correct darkness immediately
+            this.cardDarkenFactors.push(null);
 
             console.log(`[loadNextStackCard] Added to stack. New stack size: ${this.nextTextures.length}`);
         } else {
@@ -579,16 +581,14 @@ class CardStudyApp {
                 // Stack cards are further back, so they get larger depth values
                 const depth = 0.5 + (i * 0.05); // 0.5, 0.55, 0.6, 0.65, 0.7, etc.
 
-                // Systematic offset: each card layer slightly offset (down-right direction)
-                // Stack position 0 (front of stack) has minimal offset, further back increases
+                // Use random offsets only - no systematic bias
+                // This allows cards to peek from all directions
                 const stackLayer = stackSize - i; // 1 for front card, 2 for next, etc.
-                const systematicOffsetPx = stackLayer * 20; // 20 pixels per layer for better visibility
 
-                // Combine systematic offset with random offset
-                // Offset stack cards to bottom-right so they peek from behind current card
+                // Use only the random offset (no systematic offset to force direction)
                 const pixelOffset = this.cardOffsets[i];
-                const totalOffsetX = pixelOffset.x + systematicOffsetPx + 30; // Extra offset to right
-                const totalOffsetY = pixelOffset.y - systematicOffsetPx + 30; // Extra offset down
+                const totalOffsetX = pixelOffset.x;
+                const totalOffsetY = pixelOffset.y;
 
                 // Convert to normalized coordinates (-1 to 1 range)
                 // IMPORTANT: Use CSS size, not canvas pixel size (which includes DPI)
@@ -606,14 +606,14 @@ class CardStudyApp {
 
                 // Darkening: animate brightness changes when cards move in stack
                 let darkenFactor;
-                if (this.isSettling && i < this.cardDarkenFactors.length) {
-                    // Animate from old brightness to new brightness
+                if (this.isSettling && i < this.cardDarkenFactors.length && this.cardDarkenFactors[i] !== null) {
+                    // Animate from old brightness to new brightness (card was in stack before)
                     const oldDarken = this.cardDarkenFactors[i];
                     const newDarken = 1.0 - (stackLayer * 0.15);
                     const eased = 1 - Math.pow(1 - this.settleProgress, 3); // Ease out cubic
                     darkenFactor = oldDarken + (newDarken - oldDarken) * eased;
                 } else {
-                    // Static darkening based on stack position
+                    // Static darkening based on stack position (new cards or not settling)
                     darkenFactor = 1.0 - (stackLayer * 0.15);
                 }
 
