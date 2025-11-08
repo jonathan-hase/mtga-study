@@ -17,3 +17,7 @@ Thumbs.db
 # Temp files
 *.tmp
 cardlist.txt
+
+# Custom
+CLAUDE.md 
+README.md
