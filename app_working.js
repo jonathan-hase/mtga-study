@@ -1,3 +1,155 @@
+// ==================== CONFIGURATION ====================
+const CONFIG = {
+    // Card physical dimensions (standard TCG card)
+    cardWidthMM: 63,
+    cardHeightMM: 88,
+
+    // Visual effects
+    maxStackCards: 5,
+    stackRotationRange: 10,      // ±5 degrees
+    stackOffsetRange: 60,         // ±30 pixels
+    stackDarkenPerLayer: 0.15,    // 15% darkening per layer
+    viewportCardLimit: 0.9,       // 90% of viewport max
+
+    // Animation timings (milliseconds)
+    throwDuration: 500,
+    settleDuration: 300,
+
+    // Throw animation
+    throwDistanceMin: 2.5,
+    throwDistanceMax: 3.0,
+    throwRotationRange: 720,      // ±360 degrees
+
+    // Depth values for WebGPU depth testing
+    depthCurrent: 0.1,
+    depthStackBase: 0.5,
+    depthStackIncrement: 0.05,
+
+    // Persistence
+    cookieName: 'cardStudyProgress',
+    cookieExpireDays: 365,
+
+    // Preloading
+    preloadCount: 5
+};
+
+// ==================== UTILITY FUNCTIONS ====================
+class Utils {
+    static fisherYatesShuffle(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+    }
+
+    static setCookie(name, value, days) {
+        const expires = new Date();
+        expires.setTime(expires.getTime() + days * 24 * 60 * 60 * 1000);
+        document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/`;
+    }
+
+    static getCookie(name) {
+        const nameEQ = name + "=";
+        const ca = document.cookie.split(';');
+        for (let i = 0; i < ca.length; i++) {
+            let c = ca[i];
+            while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+            if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+        }
+        return null;
+    }
+
+    static easeOutCubic(t) {
+        return 1 - Math.pow(1 - t, 3);
+    }
+
+    // CRITICAL: Keep exact same signature including depth parameter
+    static createTransformMatrix(canvas, cardWidth, cardHeight, offsetX, offsetY, scale, rotationDeg, depth) {
+        const rad = (rotationDeg * Math.PI) / 180;
+        const cos = Math.cos(rad);
+        const sin = Math.sin(rad);
+
+        const scaleX = (cardWidth / canvas.width) * 2 * scale;
+        const scaleY = (cardHeight / canvas.height) * 2 * scale;
+
+        return new Float32Array([
+            cos * scaleX, sin * scaleX, 0, 0,
+            -sin * scaleY, cos * scaleY, 0, 0,
+            0, 0, 1, 0,
+            offsetX, offsetY, depth, 1  // CRITICAL: Use depth parameter, not 0
+        ]);
+    }
+}
+
+// ==================== STATE MANAGER ====================
+class StateManager {
+    constructor(totalCards) {
+        this.totalCards = totalCards;
+        this.shuffledIndices = [];
+        this.currentCardIndex = 0;
+    }
+
+    load() {
+        const saved = Utils.getCookie(CONFIG.cookieName);
+        if (saved) {
+            try {
+                const state = JSON.parse(saved);
+                this.shuffledIndices = state.indices;
+                this.currentCardIndex = state.current;
+
+                if (this.shuffledIndices.length !== this.totalCards) {
+                    throw new Error('Invalid saved state');
+                }
+            } catch (e) {
+                this.reset();
+            }
+        } else {
+            this.reset();
+        }
+    }
+
+    save() {
+        const state = {
+            indices: this.shuffledIndices,
+            current: this.currentCardIndex
+        };
+        Utils.setCookie(CONFIG.cookieName, JSON.stringify(state), CONFIG.cookieExpireDays);
+    }
+
+    reset() {
+        this.shuffledIndices = Array.from({ length: this.totalCards }, (_, i) => i);
+        Utils.fisherYatesShuffle(this.shuffledIndices);
+        this.currentCardIndex = 0;
+        this.save();
+    }
+
+    advance() {
+        this.currentCardIndex++;
+        if (this.currentCardIndex >= this.shuffledIndices.length) {
+            return false; // Deck complete
+        }
+        this.save();
+        return true;
+    }
+
+    getCurrentCardPath(cards) {
+        return cards[this.shuffledIndices[this.currentCardIndex]];
+    }
+
+    getStackCardPath(cards, offset) {
+        const idx = this.currentCardIndex + offset;
+        if (idx < this.shuffledIndices.length) {
+            return cards[this.shuffledIndices[idx]];
+        }
+        return null;
+    }
+
+    getRemainingCards() {
+        return this.shuffledIndices.length - this.currentCardIndex;
+    }
+}
+
+// ==================== MAIN APPLICATION ====================
 // Card Study Application with WebGPU
 class CardStudyApp {
     constructor() {
@@ -6,16 +158,15 @@ class CardStudyApp {
         this.errorEl = document.getElementById('error');
 
         this.cards = [];
-        this.currentCardIndex = 0;
-        this.shuffledIndices = [];
+        this.stateManager = null;
         this.isAnimating = false;
         this.animationProgress = 0;
         this.throwDirection = { x: 0, y: 0 };
         this.throwRotation = 0;
 
         // Card dimensions in mm
-        this.cardWidthMM = 63;
-        this.cardHeightMM = 88;
+        this.cardWidthMM = CONFIG.cardWidthMM;
+        this.cardHeightMM = CONFIG.cardHeightMM;
 
         // Stack effect properties
         this.cardRotations = []; // Random rotations for cards in stack
@@ -41,9 +192,12 @@ class CardStudyApp {
         try {
             await this.checkWebGPU();
             await this.loadCardList();
+
+            this.stateManager = new StateManager(this.cards.length);
+            this.stateManager.load();
+
             await this.initWebGPU();
             await this.setupCanvas();
-            this.loadShuffleState();
             await this.loadCurrentCards();
             this.setupEventListeners();
             this.loadingEl.style.display = 'none';
@@ -195,22 +349,24 @@ class CardStudyApp {
         const updateSize = () => {
             const dpi = window.devicePixelRatio || 1;
 
-            // Calculate card size in pixels (96 DPI = 1 inch = 25.4mm)
-            const mmToPixel = (96 / 25.4) * dpi;
-            const cardWidthPx = this.cardWidthMM * mmToPixel;
-            const cardHeightPx = this.cardHeightMM * mmToPixel;
+            // Calculate card size in CSS pixels (96 DPI = 1 inch = 25.4mm)
+            // NOTE: Don't multiply by devicePixelRatio here - that's only for canvas resolution
+            const mmToCssPixel = 96 / 25.4;
+            const cardWidthCss = this.cardWidthMM * mmToCssPixel;
+            const cardHeightCss = this.cardHeightMM * mmToCssPixel;
 
             // Ensure the card fits on screen with some margin
-            const maxWidth = window.innerWidth * 0.9;
-            const maxHeight = window.innerHeight * 0.9;
+            const maxWidth = window.innerWidth * CONFIG.viewportCardLimit;
+            const maxHeight = window.innerHeight * CONFIG.viewportCardLimit;
 
             let scale = 1;
-            if (cardWidthPx > maxWidth || cardHeightPx > maxHeight) {
-                scale = Math.min(maxWidth / cardWidthPx, maxHeight / cardHeightPx);
+            if (cardWidthCss > maxWidth || cardHeightCss > maxHeight) {
+                scale = Math.min(maxWidth / cardWidthCss, maxHeight / cardHeightCss);
             }
 
-            this.cardWidth = cardWidthPx * scale;
-            this.cardHeight = cardHeightPx * scale;
+            // Store card dimensions in CSS pixels, then multiply by DPI for actual rendering
+            this.cardWidth = cardWidthCss * scale * dpi;
+            this.cardHeight = cardHeightCss * scale * dpi;
 
             this.canvas.width = window.innerWidth * dpi;
             this.canvas.height = window.innerHeight * dpi;
@@ -232,54 +388,11 @@ class CardStudyApp {
         window.addEventListener('resize', updateSize);
     }
 
-    loadShuffleState() {
-        const saved = this.getCookie('cardStudyProgress');
-        if (saved) {
-            try {
-                const state = JSON.parse(saved);
-                this.shuffledIndices = state.indices;
-                this.currentCardIndex = state.current;
-
-                // Validate the saved state
-                if (this.shuffledIndices.length !== this.cards.length) {
-                    throw new Error('Invalid saved state');
-                }
-            } catch (e) {
-                this.resetShuffle();
-            }
-        } else {
-            this.resetShuffle();
-        }
-    }
-
-    saveShuffleState() {
-        const state = {
-            indices: this.shuffledIndices,
-            current: this.currentCardIndex
-        };
-        this.setCookie('cardStudyProgress', JSON.stringify(state), 365);
-    }
-
-    resetShuffle() {
-        // Create array of indices and shuffle
-        this.shuffledIndices = Array.from({ length: this.cards.length }, (_, i) => i);
-        this.fisherYatesShuffle(this.shuffledIndices);
-        this.currentCardIndex = 0;
-        this.saveShuffleState();
-    }
-
-    fisherYatesShuffle(array) {
-        for (let i = array.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [array[i], array[j]] = [array[j], array[i]];
-        }
-    }
-
     async loadCurrentCards() {
-        console.log(`[loadCurrentCards] Loading card ${this.currentCardIndex}`);
+        console.log(`[loadCurrentCards] Loading card ${this.stateManager.currentCardIndex}`);
 
         // Load current card
-        const currentCardPath = this.cards[this.shuffledIndices[this.currentCardIndex]];
+        const currentCardPath = this.stateManager.getCurrentCardPath(this.cards);
         this.currentTexture = await this.loadTexture(currentCardPath);
         console.log(`[loadCurrentCards] Current card loaded: ${currentCardPath}`);
 
@@ -287,25 +400,24 @@ class CardStudyApp {
         this.nextTextures = [];
         this.cardRotations = [];
         this.cardOffsets = [];
-        const cardsToPreload = Math.min(5, this.getRemainingCards());
+        const cardsToPreload = Math.min(CONFIG.preloadCount, this.stateManager.getRemainingCards());
         console.log(`[loadCurrentCards] Preloading ${cardsToPreload} stack cards`);
 
         // Build array of promises to load in parallel
         const loadPromises = [];
         for (let i = 1; i <= cardsToPreload; i++) {
-            const idx = this.currentCardIndex + i;
-            if (idx < this.shuffledIndices.length) {
-                const cardPath = this.cards[this.shuffledIndices[idx]];
+            const cardPath = this.stateManager.getStackCardPath(this.cards, i);
+            if (cardPath) {
                 loadPromises.push(this.loadTexture(cardPath));
 
                 // Generate random rotation for this card (-5 to +5 degrees)
-                const rotation = (Math.random() - 0.5) * 10;
+                const rotation = (Math.random() - 0.5) * CONFIG.stackRotationRange;
                 this.cardRotations.push(rotation);
 
                 // Generate random offset for this card (pixels - will be converted to normalized coords later)
                 // Subtle offsets to create peek effect
-                const offsetX = (Math.random() - 0.5) * 60; // ±30px
-                const offsetY = (Math.random() - 0.5) * 60; // ±30px
+                const offsetX = (Math.random() - 0.5) * CONFIG.stackOffsetRange; // ±30px
+                const offsetY = (Math.random() - 0.5) * CONFIG.stackOffsetRange; // ±30px
                 this.cardOffsets.push({ x: offsetX, y: offsetY });
             }
         }
@@ -340,10 +452,6 @@ class CardStudyApp {
         return texture;
     }
 
-    getRemainingCards() {
-        return this.shuffledIndices.length - this.currentCardIndex;
-    }
-
     setupEventListeners() {
         const handleInteraction = (e) => {
             e.preventDefault();
@@ -362,20 +470,20 @@ class CardStudyApp {
 
         // Random throw direction
         const angle = Math.random() * Math.PI * 2;
-        const distance = 2.5 + Math.random() * 0.5;
+        const distance = CONFIG.throwDistanceMin + Math.random() * (CONFIG.throwDistanceMax - CONFIG.throwDistanceMin);
         this.throwDirection = {
             x: Math.cos(angle) * distance,
             y: Math.sin(angle) * distance
         };
 
         // Random rotation direction
-        this.throwRotation = (Math.random() - 0.5) * 720; // -360 to 360 degrees
+        this.throwRotation = (Math.random() - 0.5) * CONFIG.throwRotationRange; // -360 to 360 degrees
 
         this.animateThrow();
     }
 
     animateThrow() {
-        const duration = 500; // ms
+        const duration = CONFIG.throwDuration; // ms
         const startTime = performance.now();
 
         const animate = (currentTime) => {
@@ -383,7 +491,7 @@ class CardStudyApp {
             this.animationProgress = Math.min(elapsed / duration, 1);
 
             // Ease out cubic
-            const eased = 1 - Math.pow(1 - this.animationProgress, 3);
+            const eased = Utils.easeOutCubic(this.animationProgress);
 
             this.render();
 
@@ -399,7 +507,7 @@ class CardStudyApp {
 
     async onCardThrowComplete() {
         this.isAnimating = false;
-        console.log(`[onCardThrowComplete] Card thrown, advancing from ${this.currentCardIndex}`);
+        console.log(`[onCardThrowComplete] Card thrown, advancing from ${this.stateManager.currentCardIndex}`);
         console.log(`[onCardThrowComplete] Stack state before: ${this.nextTextures.length} cards, rotations: ${this.cardRotations.length}, offsets: ${this.cardOffsets.length}`);
 
         // Capture the rotation/offset of the next card BEFORE advancing
@@ -418,23 +526,19 @@ class CardStudyApp {
 
         // Calculate and save old darken factors BEFORE incrementing index
         // This captures the current stack positions before the shift
-        const remaining = this.getRemainingCards();
-        const maxStack = 5;
-        const oldStackSize = Math.min(maxStack, remaining - 1);
         this.cardDarkenFactors = this.nextTextures.map((_, i) => {
-            const oldStackLayer = oldStackSize - i;
-            return 1.0 - (oldStackLayer * 0.15);
+            const oldStackLayer = i + 1; // 1 for front card (i=0), 2 for next (i=1), etc.
+            return 1.0 - (oldStackLayer * CONFIG.stackDarkenPerLayer);
         });
 
-        this.currentCardIndex++;
+        const hasMore = this.stateManager.advance();
 
-        if (this.currentCardIndex >= this.shuffledIndices.length) {
+        if (!hasMore) {
             console.log(`[onCardThrowComplete] Deck complete, reshuffling`);
             // Reshuffle
-            this.resetShuffle();
+            this.stateManager.reset();
             await this.loadCurrentCards();
         } else {
-            this.saveShuffleState();
 
             // Move the first card from stack to current (it's already loaded!)
             if (this.nextTextures.length > 0) {
@@ -476,20 +580,20 @@ class CardStudyApp {
 
     async loadNextStackCard() {
         // Load one additional card at the end of the stack
-        const nextIdx = this.currentCardIndex + this.nextTextures.length + 1;
+        const nextIdx = this.stateManager.currentCardIndex + this.nextTextures.length + 1;
         console.log(`[loadNextStackCard] Loading card at index ${nextIdx}`);
 
-        if (nextIdx < this.shuffledIndices.length) {
-            const cardPath = this.cards[this.shuffledIndices[nextIdx]];
+        const cardPath = this.stateManager.getStackCardPath(this.cards, this.nextTextures.length + 1);
+        if (cardPath) {
             const texture = await this.loadTexture(cardPath);
             this.nextTextures.push(texture);
 
             // Generate random rotation and offset for new card
-            const rotation = (Math.random() - 0.5) * 10;
+            const rotation = (Math.random() - 0.5) * CONFIG.stackRotationRange;
             this.cardRotations.push(rotation);
 
-            const offsetX = (Math.random() - 0.5) * 60; // ±30px
-            const offsetY = (Math.random() - 0.5) * 60; // ±30px
+            const offsetX = (Math.random() - 0.5) * CONFIG.stackOffsetRange; // ±30px
+            const offsetY = (Math.random() - 0.5) * CONFIG.stackOffsetRange; // ±30px
             this.cardOffsets.push({ x: offsetX, y: offsetY });
 
             // New cards have no old brightness to animate from, so mark as null
@@ -503,7 +607,7 @@ class CardStudyApp {
     }
 
     animateSettle() {
-        const duration = 300; // ms
+        const duration = CONFIG.settleDuration; // ms
         const startTime = performance.now();
 
         const animate = (currentTime) => {
@@ -524,23 +628,10 @@ class CardStudyApp {
     }
 
     createTransformMatrix(offsetX, offsetY, scale, rotationDeg, depth) {
-        const rad = (rotationDeg * Math.PI) / 180;
-        const cos = Math.cos(rad);
-        const sin = Math.sin(rad);
-
-        // Create transformation matrix
-        const aspectRatio = this.canvas.width / this.canvas.height;
-        const cardAspect = this.cardWidth / this.cardHeight;
-
-        const scaleX = (this.cardWidth / this.canvas.width) * 2 * scale;
-        const scaleY = (this.cardHeight / this.canvas.height) * 2 * scale;
-
-        return new Float32Array([
-            cos * scaleX, sin * scaleX, 0, 0,
-            -sin * scaleY, cos * scaleY, 0, 0,
-            0, 0, 1, 0,
-            offsetX, offsetY, depth, 1
-        ]);
+        return Utils.createTransformMatrix(
+            this.canvas, this.cardWidth, this.cardHeight,
+            offsetX, offsetY, scale, rotationDeg, depth
+        );
     }
 
     render() {
@@ -568,8 +659,8 @@ class CardStudyApp {
         // Render from BACK TO FRONT for proper alpha blending
         // First render stack cards (furthest back first), then current card (front)
 
-        const remaining = this.getRemainingCards();
-        const maxStack = 5;
+        const remaining = this.stateManager.getRemainingCards();
+        const maxStack = CONFIG.maxStackCards;
         const stackSize = Math.min(maxStack, remaining - 1);
 
         console.log(`[render] Rendering ${stackSize} stack cards from ${this.nextTextures.length} available`);
@@ -579,11 +670,11 @@ class CardStudyApp {
             if (i < this.nextTextures.length) {
                 // Depth for layering (with depth testing: smaller = closer, larger = further)
                 // Stack cards are further back, so they get larger depth values
-                const depth = 0.5 + (i * 0.05); // 0.5, 0.55, 0.6, 0.65, 0.7, etc.
+                const depth = CONFIG.depthStackBase + (i * CONFIG.depthStackIncrement);
 
                 // Use random offsets only - no systematic bias
                 // This allows cards to peek from all directions
-                const stackLayer = stackSize - i; // 1 for front card, 2 for next, etc.
+                const stackLayer = i + 1; // 1 for front card (i=0), 2 for next (i=1), etc.
 
                 // Use only the random offset (no systematic offset to force direction)
                 const pixelOffset = this.cardOffsets[i];
@@ -608,12 +699,12 @@ class CardStudyApp {
                 if (this.isSettling && i < this.cardDarkenFactors.length && this.cardDarkenFactors[i] !== null) {
                     // Animate from old brightness to new brightness (card was in stack before)
                     const oldDarken = this.cardDarkenFactors[i];
-                    const newDarken = 1.0 - (stackLayer * 0.15);
-                    const eased = 1 - Math.pow(1 - this.settleProgress, 3); // Ease out cubic
+                    const newDarken = 1.0 - (stackLayer * CONFIG.stackDarkenPerLayer);
+                    const eased = Utils.easeOutCubic(this.settleProgress); // Ease out cubic
                     darkenFactor = oldDarken + (newDarken - oldDarken) * eased;
                 } else {
                     // Static darkening based on stack position (new cards or not settling)
-                    darkenFactor = 1.0 - (stackLayer * 0.15);
+                    darkenFactor = 1.0 - (stackLayer * CONFIG.stackDarkenPerLayer);
                 }
 
                 console.log(`[render] Stack card ${i}: offset=(${totalOffsetX.toFixed(1)}, ${totalOffsetY.toFixed(1)})px, normalized=(${normalizedOffsetX.toFixed(3)}, ${normalizedOffsetY.toFixed(3)}), rotation=${rotation.toFixed(1)}°, scale=${scale.toFixed(2)}, darken=${darkenFactor.toFixed(2)}, depth=${depth.toFixed(2)}`);
@@ -651,14 +742,14 @@ class CardStudyApp {
 
             if (this.isAnimating) {
                 // Throw animation
-                const eased = 1 - Math.pow(1 - this.animationProgress, 3);
+                const eased = Utils.easeOutCubic(this.animationProgress);
                 offsetX = this.throwDirection.x * eased;
                 offsetY = this.throwDirection.y * eased;
                 rotation = this.throwRotation * eased;
                 opacity = 1.0 - this.animationProgress;
             } else if (this.isSettling) {
                 // Settle animation: smoothly rotate and move from stack position to center
-                const eased = 1 - Math.pow(1 - this.settleProgress, 3); // Ease out cubic
+                const eased = Utils.easeOutCubic(this.settleProgress); // Ease out cubic
 
                 // Interpolate rotation from initial to 0
                 rotation = this.currentCardInitialRotation * (1 - eased);
@@ -673,7 +764,7 @@ class CardStudyApp {
                 offsetY = (pixelOffsetY / cssHeight) * 2;
 
                 // Interpolate darkening from stack value to full brightness
-                const initialDarken = 0.85; // Same as first card in stack
+                const initialDarken = 1.0 - CONFIG.stackDarkenPerLayer; // Same as first card in stack
                 darken = initialDarken + (1.0 - initialDarken) * eased;
             }
 
@@ -683,7 +774,7 @@ class CardStudyApp {
                 offsetY,
                 1.0,
                 rotation,
-                0.1, // Current card is closest (smallest depth value)
+                CONFIG.depthCurrent, // Current card is closest (smallest depth value)
                 opacity,
                 darken,
                 passEncoder
@@ -727,24 +818,6 @@ class CardStudyApp {
 
         passEncoder.setBindGroup(0, bindGroup);
         passEncoder.draw(6, 1, 0, 0);
-    }
-
-    // Cookie utilities
-    setCookie(name, value, days) {
-        const expires = new Date();
-        expires.setTime(expires.getTime() + days * 24 * 60 * 60 * 1000);
-        document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/`;
-    }
-
-    getCookie(name) {
-        const nameEQ = name + "=";
-        const ca = document.cookie.split(';');
-        for (let i = 0; i < ca.length; i++) {
-            let c = ca[i];
-            while (c.charAt(0) === ' ') c = c.substring(1, c.length);
-            if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
-        }
-        return null;
     }
 
     showError(message) {
