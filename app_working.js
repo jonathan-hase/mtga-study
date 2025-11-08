@@ -29,8 +29,10 @@ const CONFIG = {
     cookieName: 'cardStudyProgress',
     cookieExpireDays: 365,
 
-    // Preloading
-    preloadCount: 5,
+    // Preloading (should match maxStackCards to show full stack)
+    get preloadCount() {
+        return this.maxStackCards;
+    },
 
     // Computed values (do not modify directly)
     get depthStackIncrement() {
