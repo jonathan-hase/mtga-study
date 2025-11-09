@@ -460,9 +460,14 @@ class CardStudyApp {
                 this.cardRotations.push(rotation);
 
                 // Generate random offset for this card (pixels - will be converted to normalized coords later)
-                // Subtle offsets to create peek effect
-                const offsetX = (Math.random() - 0.5) * CONFIG.stackOffsetRange; // ±30px
-                const offsetY = (Math.random() - 0.5) * CONFIG.stackOffsetRange; // ±30px
+                // CRITICAL: Scale offsets proportionally to screen size to maintain consistent visual appearance
+                // Base values designed for 1920×1080 desktop screens
+                const baseScreenWidth = 1920;
+                const baseScreenHeight = 1080;
+                const screenRatio = Math.min(window.innerWidth / baseScreenWidth, window.innerHeight / baseScreenHeight);
+
+                const offsetX = (Math.random() - 0.5) * CONFIG.stackOffsetRange * screenRatio;
+                const offsetY = (Math.random() - 0.5) * CONFIG.stackOffsetRange * screenRatio;
                 this.cardOffsets.push({ x: offsetX, y: offsetY });
             }
         }
@@ -650,8 +655,14 @@ class CardStudyApp {
             const rotation = (Math.random() - 0.5) * CONFIG.stackRotationRange;
             this.cardRotations.push(rotation);
 
-            const offsetX = (Math.random() - 0.5) * CONFIG.stackOffsetRange; // ±30px
-            const offsetY = (Math.random() - 0.5) * CONFIG.stackOffsetRange; // ±30px
+            // CRITICAL: Scale offsets proportionally to screen size to maintain consistent visual appearance
+            // Base values designed for 1920×1080 desktop screens
+            const baseScreenWidth = 1920;
+            const baseScreenHeight = 1080;
+            const screenRatio = Math.min(window.innerWidth / baseScreenWidth, window.innerHeight / baseScreenHeight);
+
+            const offsetX = (Math.random() - 0.5) * CONFIG.stackOffsetRange * screenRatio;
+            const offsetY = (Math.random() - 0.5) * CONFIG.stackOffsetRange * screenRatio;
             this.cardOffsets.push({ x: offsetX, y: offsetY });
 
             // New cards have no old brightness to animate from, so mark as null
