@@ -5,11 +5,11 @@ const CONFIG = {
     cardHeightMM: 88,
 
     // Visual effects
-    maxStackCards: 10,
+    maxStackCards: 5,
     stackRotationRange: 10,      // ±5 degrees
     stackOffsetRange: 60,         // ±30 pixels
-    stackDarkenPerLayer: 0.12,    // 5% darkening per layer
-    minCardMargin: 25,            // Minimum margin in pixels around card (all sides)
+    stackDarkenPerLayer: 0.25,    // 5% darkening per layer
+    minCardMargin: 5,            // Minimum margin in pixels around card (all sides)
 
     // Animation timings (milliseconds)
     throwDuration: 400,
@@ -77,10 +77,10 @@ class Utils {
         const sin = Math.sin(rad);
 
         // Simple approach: convert card dimensions directly to normalized device coordinates
-        // Card dimensions are in physical pixels, canvas is in physical pixels
-        // No * 2 needed because we're working in physical pixel space
-        const scaleX = (cardWidth / canvas.width) * scale;
-        const scaleY = (cardHeight / canvas.height) * scale;
+        // Card dimensions are in CSS pixels, canvas dimensions are in CSS pixels
+        // * 2 needed to convert to NDC space (quad spans from -1 to +1 = 2 units)
+        const scaleX = (cardWidth / canvas.width) * 2 * scale;
+        const scaleY = (cardHeight / canvas.height) * 2 * scale;
 
         return new Float32Array([
             cos * scaleX, sin * scaleX, 0, 0,
@@ -381,9 +381,9 @@ class CardStudyApp {
                 console.log(`[setupCanvas] Card fits, keeping natural size (scale: 1.0)`);
             }
 
-            // Store card dimensions in PHYSICAL pixels (WebGPU renders in physical pixels)
-            this.cardWidth = cardWidthCss * scale * dpi;
-            this.cardHeight = cardHeightCss * scale * dpi;
+            // Store card dimensions in CSS pixels for transform calculations
+            this.cardWidth = cardWidthCss * scale;
+            this.cardHeight = cardHeightCss * scale;
 
             // DEBUG: Log the values
             console.log(`[setupCanvas] DPI: ${dpi}, innerWidth: ${window.innerWidth}, innerHeight: ${window.innerHeight}`);
@@ -653,17 +653,22 @@ class CardStudyApp {
     }
 
     createTransformMatrix(offsetX, offsetY, scale, rotationDeg, depth) {
-        // WebGPU renders in physical pixels, so use actual canvas dimensions
-        // Both canvas and card dimensions are now in physical pixels
+        // Use CSS canvas dimensions for transform calculations
+        // Both canvas and card dimensions are in CSS pixels
+        const cssCanvas = {
+            width: window.innerWidth,
+            height: window.innerHeight
+        };
+
         // DEBUG: Log transform parameters (only for current card at center)
         if (offsetX === 0 && offsetY === 0 && rotationDeg === 0) {
-            console.log(`[createTransformMatrix] canvas: ${this.canvas.width}x${this.canvas.height} (physical pixels)`);
-            console.log(`[createTransformMatrix] card: ${this.cardWidth.toFixed(2)}x${this.cardHeight.toFixed(2)} (physical pixels)`);
+            console.log(`[createTransformMatrix] canvas: ${cssCanvas.width}x${cssCanvas.height} (CSS pixels)`);
+            console.log(`[createTransformMatrix] card: ${this.cardWidth.toFixed(2)}x${this.cardHeight.toFixed(2)} (CSS pixels)`);
             console.log(`[createTransformMatrix] scale: ${scale}, rotation: ${rotationDeg}`);
         }
 
         return Utils.createTransformMatrix(
-            this.canvas, this.cardWidth, this.cardHeight,
+            cssCanvas, this.cardWidth, this.cardHeight,
             offsetX, offsetY, scale, rotationDeg, depth
         );
     }
