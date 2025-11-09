@@ -380,13 +380,9 @@ class CardStudyApp {
                 console.log(`[setupCanvas] Card fits, no scaling needed (scale: 1.0000)`);
             }
 
-            // Store card dimensions in CSS pixels (DPI conversion happens in transform matrix)
-            this.cardWidth = cardWidthCss * scale;
-            this.cardHeight = cardHeightCss * scale;
-
-            // Store canvas CSS dimensions for transform calculation
-            this.canvasWidthCss = window.innerWidth;
-            this.canvasHeightCss = window.innerHeight;
+            // Store card dimensions in PHYSICAL pixels (WebGPU renders in physical pixels)
+            this.cardWidth = cardWidthCss * scale * dpi;
+            this.cardHeight = cardHeightCss * scale * dpi;
 
             // DEBUG: Log the values
             console.log(`[setupCanvas] DPI: ${dpi}, innerWidth: ${window.innerWidth}, innerHeight: ${window.innerHeight}`);
@@ -656,21 +652,17 @@ class CardStudyApp {
     }
 
     createTransformMatrix(offsetX, offsetY, scale, rotationDeg, depth) {
-        // Create a pseudo-canvas object with CSS dimensions for correct transform calculation
-        const cssCanvas = {
-            width: this.canvasWidthCss,
-            height: this.canvasHeightCss
-        };
-
+        // WebGPU renders in physical pixels, so use actual canvas dimensions
+        // Both canvas and card dimensions are now in physical pixels
         // DEBUG: Log transform parameters (only for current card at center)
         if (offsetX === 0 && offsetY === 0 && rotationDeg === 0) {
-            console.log(`[createTransformMatrix] cssCanvas: ${cssCanvas.width}x${cssCanvas.height}`);
-            console.log(`[createTransformMatrix] card: ${this.cardWidth.toFixed(2)}x${this.cardHeight.toFixed(2)}`);
+            console.log(`[createTransformMatrix] canvas: ${this.canvas.width}x${this.canvas.height} (physical pixels)`);
+            console.log(`[createTransformMatrix] card: ${this.cardWidth.toFixed(2)}x${this.cardHeight.toFixed(2)} (physical pixels)`);
             console.log(`[createTransformMatrix] scale: ${scale}, rotation: ${rotationDeg}`);
         }
 
         return Utils.createTransformMatrix(
-            cssCanvas, this.cardWidth, this.cardHeight,
+            this.canvas, this.cardWidth, this.cardHeight,
             offsetX, offsetY, scale, rotationDeg, depth
         );
     }
