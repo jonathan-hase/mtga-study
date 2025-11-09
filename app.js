@@ -87,16 +87,15 @@ class Utils {
         const scaleX = (cardWidth / canvas.width) * 2 * scale / dpi;
         const scaleY = (cardHeight / canvas.height) * 2 * scale / dpi;
 
-        // CRITICAL: Apply transformations in correct order to prevent shearing
-        // Matrix combines: Scale → Rotate → Translate
-        // Mixing rotation (cos/sin) with different scales (scaleX ≠ scaleY) correctly:
-        // Row 0: [cos*scaleX, -sin*scaleY] = rotated & scaled X-axis
-        // Row 1: [sin*scaleX,  cos*scaleY] = rotated & scaled Y-axis
+        // WebGPU uses column-major matrices
+        // Standard 2D rotation with non-uniform scale applied before rotation:
+        // Column 0: [cos*scaleX, sin*scaleX] - rotated & scaled X basis vector
+        // Column 1: [-sin*scaleY, cos*scaleY] - rotated & scaled Y basis vector
         return new Float32Array([
-            cos * scaleX, -sin * scaleY, 0, 0,  // X-axis: cos uses scaleX, -sin uses scaleY
-            sin * scaleX,  cos * scaleY, 0, 0,  // Y-axis: sin uses scaleX, cos uses scaleY
-            0, 0, 1, 0,
-            offsetX, offsetY, depth, 1  // CRITICAL: Use depth parameter, not 0
+            cos * scaleX,  sin * scaleX,  0, 0,  // Column 0
+            -sin * scaleY, cos * scaleY,  0, 0,  // Column 1
+            0, 0, 1, 0,                           // Column 2
+            offsetX, offsetY, depth, 1            // Column 3 (translation)
         ]);
     }
 }
