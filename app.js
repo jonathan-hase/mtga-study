@@ -192,6 +192,12 @@ class CardStudyApp {
         this.isSettling = false; // Whether current card is settling into position
         this.settleProgress = 1.0; // Progress of settle animation (0 to 1)
 
+        // Snapshots of stack arrays during settle animation (prevents race condition)
+        this.settleStackRotations = [];
+        this.settleStackOffsets = [];
+        this.settleStackDarkenFactors = [];
+        this.isLoadingStackCard = false; // Flag to prevent concurrent array modifications
+
         // WebGPU resources
         this.device = null;
         this.context = null;
@@ -592,8 +598,21 @@ class CardStudyApp {
 
                 console.log(`[onCardThrowComplete] Stack state after shift: ${this.nextTextures.length} cards`);
 
+                // Create snapshots of current stack arrays BEFORE loading new card
+                // This prevents race condition where loadNextStackCard() modifies arrays during settle animation
+                this.settleStackRotations = [...this.cardRotations];
+                this.settleStackOffsets = [...this.cardOffsets];
+                this.settleStackDarkenFactors = [...this.cardDarkenFactors];
+
                 // Load one new card at the end of the stack (async, don't wait)
-                this.loadNextStackCard();
+                this.isLoadingStackCard = true;
+                this.loadNextStackCard().then(() => {
+                    this.isLoadingStackCard = false;
+                    console.log(`[onCardThrowComplete] Stack card loaded, flag cleared`);
+                }).catch(err => {
+                    this.isLoadingStackCard = false;
+                    console.error(`[onCardThrowComplete] Error loading stack card:`, err);
+                });
             } else {
                 console.warn(`[onCardThrowComplete] Stack was empty! Falling back to full load`);
                 // Fallback: no cards in stack, load normally
