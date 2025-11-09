@@ -76,16 +76,11 @@ class Utils {
         const cos = Math.cos(rad);
         const sin = Math.sin(rad);
 
-        // CRITICAL FIX: Divide by DPI to compensate for WebGPU viewport on high-DPI displays
-        // WebGPU on Safari/iOS uses physical canvas size for viewport, so we need to
-        // scale down by DPI to get correct visual size
-        const dpi = window.devicePixelRatio || 1;
-
         // Card dimensions are in CSS pixels, canvas dimensions are in CSS pixels
         // * 2 needed to convert to NDC space (quad spans from -1 to +1 = 2 units)
-        // / dpi compensates for physical viewport on high-DPI displays
-        const scaleX = (cardWidth / canvas.width) * 2 * scale / dpi;
-        const scaleY = (cardHeight / canvas.height) * 2 * scale / dpi;
+        // setupCanvas() handles all DPI-aware sizing, so no DPI compensation needed here
+        const scaleX = (cardWidth / canvas.width) * 2 * scale;
+        const scaleY = (cardHeight / canvas.height) * 2 * scale;
 
         // WebGPU uses column-major matrices
         // Standard 2D rotation with non-uniform scale applied before rotation:
