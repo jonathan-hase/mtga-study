@@ -375,9 +375,18 @@ class CardStudyApp {
             const maxWidth = window.innerWidth - (margin * 2);
             const maxHeight = window.innerHeight - (margin * 2);
 
-            // Scale down if card is too large (never scale up beyond natural size)
+            // Scaling logic:
+            // - Mobile (< 400px width): Scale to fill available width (ignore natural size)
+            // - Desktop: Keep natural size unless too large, then scale down
             let scale = 1;
-            if (cardWidthCss > maxWidth || cardHeightCss > maxHeight) {
+            if (window.innerWidth < 400) {
+                // Mobile: Scale card to fill width with margins
+                const scaleByWidth = maxWidth / cardWidthCss;
+                const scaleByHeight = maxHeight / cardHeightCss;
+                scale = Math.min(scaleByWidth, scaleByHeight);
+                console.log(`[setupCanvas] Mobile view (${window.innerWidth}px), scaling to fit: ${scale.toFixed(4)}`);
+            } else if (cardWidthCss > maxWidth || cardHeightCss > maxHeight) {
+                // Desktop: Only scale down if card is too large
                 const scaleByWidth = maxWidth / cardWidthCss;
                 const scaleByHeight = maxHeight / cardHeightCss;
                 scale = Math.min(scaleByWidth, scaleByHeight);
