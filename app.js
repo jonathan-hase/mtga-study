@@ -9,7 +9,7 @@ const CONFIG = {
     stackRotationRange: 10,      // ±5 degrees
     stackOffsetRange: 60,         // ±30 pixels
     stackDarkenPerLayer: 0.12,    // 5% darkening per layer
-    minCardMargin: 5,             // Minimum margin in pixels around card (all sides)
+    minCardMargin: 25,            // Minimum margin in pixels around card (all sides)
 
     // Animation timings (milliseconds)
     throwDuration: 400,
