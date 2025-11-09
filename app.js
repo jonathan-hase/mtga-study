@@ -12,8 +12,8 @@ const CONFIG = {
     minCardMargin: 5,             // Minimum margin in pixels around card (all sides)
 
     // Animation timings (milliseconds)
-    throwDuration: 500,
-    settleDuration: 300,
+    throwDuration: 300,
+    settleDuration: 100,
 
     // Throw animation
     throwDistanceMin: 2.5,
@@ -78,8 +78,9 @@ class Utils {
 
         // Simple approach: convert card dimensions directly to normalized device coordinates
         // Card dimensions are already sized correctly with margin in setupCanvas
-        const scaleX = (cardWidth / canvas.width) * 2 * scale;
-        const scaleY = (cardHeight / canvas.height) * 2 * scale;
+        // NOTE: No * 2 needed - the quad already spans 2 units (from -1 to +1)
+        const scaleX = (cardWidth / canvas.width) * scale;
+        const scaleY = (cardHeight / canvas.height) * scale;
 
         return new Float32Array([
             cos * scaleX, sin * scaleX, 0, 0,
