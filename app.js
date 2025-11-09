@@ -698,6 +698,15 @@ class CardStudyApp {
         const passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
         passEncoder.setPipeline(this.pipeline);
 
+        // Set viewport to CSS display size (not physical canvas size)
+        // This ensures NDC-to-screen mapping uses CSS pixels, fixing iPhone DPI scaling issue
+        passEncoder.setViewport(
+            0, 0,                      // x, y
+            window.innerWidth,         // width (CSS pixels)
+            window.innerHeight,        // height (CSS pixels)
+            0, 1                       // minDepth, maxDepth
+        );
+
         // Render from BACK TO FRONT for proper alpha blending
         // First render stack cards (furthest back first), then current card (front)
 
