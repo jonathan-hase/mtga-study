@@ -653,25 +653,30 @@ class CardStudyApp {
     }
 
     createTransformMatrix(offsetX, offsetY, scale, rotationDeg, depth) {
-        // Use CSS display size (how the canvas appears on screen)
-        // NOT physical rendering size (canvas.width/height includes DPI)
-        const cssCanvas = {
-            width: window.innerWidth,
-            height: window.innerHeight
+        // CRITICAL FIX: Use physical canvas dimensions (canvas.width/height)
+        // WebGPU viewport on Safari/iOS uses physical pixels, not CSS pixels
+        // Card dimensions must also be scaled to physical pixels
+        const dpi = window.devicePixelRatio || 1;
+        const physicalCanvas = {
+            width: this.canvas.width,    // Physical pixels (e.g., 1170 on iPhone)
+            height: this.canvas.height   // Physical pixels (e.g., 2097 on iPhone)
         };
+        const cardWidthPhysical = this.cardWidth * dpi;
+        const cardHeightPhysical = this.cardHeight * dpi;
 
         // DEBUG: Log transform parameters (only for current card at center)
         if (offsetX === 0 && offsetY === 0 && rotationDeg === 0) {
-            console.log(`[createTransformMatrix] canvas display size: ${cssCanvas.width}x${cssCanvas.height} (CSS pixels)`);
-            console.log(`[createTransformMatrix] canvas render size: ${this.canvas.width}x${this.canvas.height} (physical pixels)`);
-            console.log(`[createTransformMatrix] card: ${this.cardWidth.toFixed(2)}x${this.cardHeight.toFixed(2)} (CSS pixels)`);
+            console.log(`[createTransformMatrix] DPI: ${dpi}`);
+            console.log(`[createTransformMatrix] canvas physical size: ${physicalCanvas.width}x${physicalCanvas.height} px`);
+            console.log(`[createTransformMatrix] card CSS: ${this.cardWidth.toFixed(2)}x${this.cardHeight.toFixed(2)} px`);
+            console.log(`[createTransformMatrix] card physical: ${cardWidthPhysical.toFixed(2)}x${cardHeightPhysical.toFixed(2)} px`);
             console.log(`[createTransformMatrix] scale: ${scale}, rotation: ${rotationDeg}`);
         }
 
         return Utils.createTransformMatrix(
-            cssCanvas,
-            this.cardWidth,
-            this.cardHeight,
+            physicalCanvas,
+            cardWidthPhysical,
+            cardHeightPhysical,
             offsetX, offsetY, scale, rotationDeg, depth
         );
     }
@@ -724,11 +729,9 @@ class CardStudyApp {
                 const totalOffsetY = pixelOffset.y;
 
                 // Convert to normalized coordinates (-1 to 1 range)
-                // IMPORTANT: Use CSS size, not canvas pixel size (which includes DPI)
-                const cssWidth = parseInt(this.canvas.style.width);
-                const cssHeight = parseInt(this.canvas.style.height);
-                const normalizedOffsetX = (totalOffsetX / cssWidth) * 2;
-                const normalizedOffsetY = (totalOffsetY / cssHeight) * 2;
+                // IMPORTANT: Now using physical canvas size to match transform matrix
+                const normalizedOffsetX = (totalOffsetX / window.innerWidth) * 2;
+                const normalizedOffsetY = (totalOffsetY / window.innerHeight) * 2;
 
                 // Rotation from stored random rotation
                 const rotation = this.cardRotations[i];
@@ -799,11 +802,9 @@ class CardStudyApp {
                 // Interpolate offset from initial to 0
                 const pixelOffsetX = this.currentCardInitialOffset.x * (1 - eased);
                 const pixelOffsetY = this.currentCardInitialOffset.y * (1 - eased);
-                // Use CSS size, not canvas pixel size (which includes DPI)
-                const cssWidth = parseInt(this.canvas.style.width);
-                const cssHeight = parseInt(this.canvas.style.height);
-                offsetX = (pixelOffsetX / cssWidth) * 2;
-                offsetY = (pixelOffsetY / cssHeight) * 2;
+                // Now using window dimensions to match physical canvas coordinates
+                offsetX = (pixelOffsetX / window.innerWidth) * 2;
+                offsetY = (pixelOffsetY / window.innerHeight) * 2;
 
                 // Interpolate darkening from stack value to full brightness
                 const initialDarken = 1.0 - CONFIG.stackDarkenPerLayer; // Same as first card in stack
