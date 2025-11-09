@@ -5,10 +5,10 @@ const CONFIG = {
     cardHeightMM: 88,
 
     // Visual effects
-    maxStackCards: 15,
+    maxStackCards: 10,
     stackRotationRange: 10,      // ±5 degrees
     stackOffsetRange: 60,         // ±30 pixels
-    stackDarkenPerLayer: 0.08,    // 5% darkening per layer
+    stackDarkenPerLayer: 0.12,    // 5% darkening per layer
     minCardMargin: 5,             // Minimum margin in pixels around card (all sides)
 
     // Animation timings (milliseconds)
@@ -76,20 +76,10 @@ class Utils {
         const cos = Math.cos(rad);
         const sin = Math.sin(rad);
 
-        // Use the smaller dimension to maintain aspect ratio (prevent distortion)
-        const canvasAspect = canvas.width / canvas.height;
-        const cardAspect = cardWidth / cardHeight;
-
-        let scaleX, scaleY;
-        if (canvasAspect > cardAspect) {
-            // Canvas is wider than card - scale based on height
-            scaleY = (cardHeight / canvas.height) * 2 * scale;
-            scaleX = scaleY * cardAspect / canvasAspect;
-        } else {
-            // Canvas is taller than card - scale based on width
-            scaleX = (cardWidth / canvas.width) * 2 * scale;
-            scaleY = scaleX / cardAspect * canvasAspect;
-        }
+        // Simple approach: convert card dimensions directly to normalized device coordinates
+        // Card dimensions are already sized correctly with margin in setupCanvas
+        const scaleX = (cardWidth / canvas.width) * 2 * scale;
+        const scaleY = (cardHeight / canvas.height) * 2 * scale;
 
         return new Float32Array([
             cos * scaleX, sin * scaleX, 0, 0,
