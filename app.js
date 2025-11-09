@@ -87,9 +87,14 @@ class Utils {
         const scaleX = (cardWidth / canvas.width) * 2 * scale / dpi;
         const scaleY = (cardHeight / canvas.height) * 2 * scale / dpi;
 
+        // CRITICAL: Apply transformations in correct order to prevent shearing
+        // Matrix combines: Scale → Rotate → Translate
+        // Mixing rotation (cos/sin) with different scales (scaleX ≠ scaleY) correctly:
+        // Row 0: [cos*scaleX, -sin*scaleY] = rotated & scaled X-axis
+        // Row 1: [sin*scaleX,  cos*scaleY] = rotated & scaled Y-axis
         return new Float32Array([
-            cos * scaleX, sin * scaleX, 0, 0,
-            -sin * scaleY, cos * scaleY, 0, 0,
+            cos * scaleX, -sin * scaleY, 0, 0,  // X-axis: cos uses scaleX, -sin uses scaleY
+            sin * scaleX,  cos * scaleY, 0, 0,  // Y-axis: sin uses scaleX, cos uses scaleY
             0, 0, 1, 0,
             offsetX, offsetY, depth, 1  // CRITICAL: Use depth parameter, not 0
         ]);
