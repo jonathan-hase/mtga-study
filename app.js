@@ -76,11 +76,16 @@ class Utils {
         const cos = Math.cos(rad);
         const sin = Math.sin(rad);
 
-        // Simple approach: convert card dimensions directly to normalized device coordinates
+        // CRITICAL FIX: Divide by DPI to compensate for WebGPU viewport on high-DPI displays
+        // WebGPU on Safari/iOS uses physical canvas size for viewport, so we need to
+        // scale down by DPI to get correct visual size
+        const dpi = window.devicePixelRatio || 1;
+
         // Card dimensions are in CSS pixels, canvas dimensions are in CSS pixels
         // * 2 needed to convert to NDC space (quad spans from -1 to +1 = 2 units)
-        const scaleX = (cardWidth / canvas.width) * 2 * scale;
-        const scaleY = (cardHeight / canvas.height) * 2 * scale;
+        // / dpi compensates for physical viewport on high-DPI displays
+        const scaleX = (cardWidth / canvas.width) * 2 * scale / dpi;
+        const scaleY = (cardHeight / canvas.height) * 2 * scale / dpi;
 
         return new Float32Array([
             cos * scaleX, sin * scaleX, 0, 0,
@@ -653,30 +658,27 @@ class CardStudyApp {
     }
 
     createTransformMatrix(offsetX, offsetY, scale, rotationDeg, depth) {
-        // CRITICAL FIX: Use physical canvas dimensions (canvas.width/height)
-        // WebGPU viewport on Safari/iOS uses physical pixels, not CSS pixels
-        // Card dimensions must also be scaled to physical pixels
-        const dpi = window.devicePixelRatio || 1;
-        const physicalCanvas = {
-            width: this.canvas.width,    // Physical pixels (e.g., 1170 on iPhone)
-            height: this.canvas.height   // Physical pixels (e.g., 2097 on iPhone)
+        // Use CSS display size (how the canvas appears on screen)
+        // DPI compensation happens in Utils.createTransformMatrix
+        const cssCanvas = {
+            width: window.innerWidth,
+            height: window.innerHeight
         };
-        const cardWidthPhysical = this.cardWidth * dpi;
-        const cardHeightPhysical = this.cardHeight * dpi;
 
         // DEBUG: Log transform parameters (only for current card at center)
         if (offsetX === 0 && offsetY === 0 && rotationDeg === 0) {
+            const dpi = window.devicePixelRatio || 1;
             console.log(`[createTransformMatrix] DPI: ${dpi}`);
-            console.log(`[createTransformMatrix] canvas physical size: ${physicalCanvas.width}x${physicalCanvas.height} px`);
-            console.log(`[createTransformMatrix] card CSS: ${this.cardWidth.toFixed(2)}x${this.cardHeight.toFixed(2)} px`);
-            console.log(`[createTransformMatrix] card physical: ${cardWidthPhysical.toFixed(2)}x${cardHeightPhysical.toFixed(2)} px`);
+            console.log(`[createTransformMatrix] canvas CSS size: ${cssCanvas.width}x${cssCanvas.height} px`);
+            console.log(`[createTransformMatrix] canvas physical size: ${this.canvas.width}x${this.canvas.height} px`);
+            console.log(`[createTransformMatrix] card: ${this.cardWidth.toFixed(2)}x${this.cardHeight.toFixed(2)} (CSS pixels)`);
             console.log(`[createTransformMatrix] scale: ${scale}, rotation: ${rotationDeg}`);
         }
 
         return Utils.createTransformMatrix(
-            physicalCanvas,
-            cardWidthPhysical,
-            cardHeightPhysical,
+            cssCanvas,
+            this.cardWidth,
+            this.cardHeight,
             offsetX, offsetY, scale, rotationDeg, depth
         );
     }
@@ -729,7 +731,7 @@ class CardStudyApp {
                 const totalOffsetY = pixelOffset.y;
 
                 // Convert to normalized coordinates (-1 to 1 range)
-                // IMPORTANT: Now using physical canvas size to match transform matrix
+                // Use CSS dimensions (window.innerWidth/Height) to match transform calculations
                 const normalizedOffsetX = (totalOffsetX / window.innerWidth) * 2;
                 const normalizedOffsetY = (totalOffsetY / window.innerHeight) * 2;
 
@@ -802,7 +804,7 @@ class CardStudyApp {
                 // Interpolate offset from initial to 0
                 const pixelOffsetX = this.currentCardInitialOffset.x * (1 - eased);
                 const pixelOffsetY = this.currentCardInitialOffset.y * (1 - eased);
-                // Now using window dimensions to match physical canvas coordinates
+                // Use CSS dimensions (window.innerWidth/Height) to match transform calculations
                 offsetX = (pixelOffsetX / window.innerWidth) * 2;
                 offsetY = (pixelOffsetY / window.innerHeight) * 2;
 
