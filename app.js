@@ -393,8 +393,10 @@ class CardStudyApp {
             console.log(`[setupCanvas] final cardWidth: ${this.cardWidth.toFixed(2)}, cardHeight: ${this.cardHeight.toFixed(2)}`);
             console.log(`[setupCanvas] canvasWidthCss: ${this.canvasWidthCss}, canvasHeightCss: ${this.canvasHeightCss}`);
 
-            this.canvas.width = window.innerWidth * dpi;
-            this.canvas.height = window.innerHeight * dpi;
+            // TEST: Set canvas to CSS size without DPI scaling
+            // (to see if Safari scaling issue is the problem)
+            this.canvas.width = window.innerWidth;
+            this.canvas.height = window.innerHeight;
             this.canvas.style.width = `${window.innerWidth}px`;
             this.canvas.style.height = `${window.innerHeight}px`;
 
