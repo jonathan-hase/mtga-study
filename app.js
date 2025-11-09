@@ -753,8 +753,15 @@ class CardStudyApp {
                 // This allows cards to peek from all directions
                 const stackLayer = i + 1; // 1 for front card (i=0), 2 for next (i=1), etc.
 
+                // CRITICAL: Use snapshot arrays during settle animation to prevent race condition
+                // When settle is active, loadNextStackCard() might be modifying live arrays
+                const useSnapshots = this.isSettling;
+                const rotationsArray = useSnapshots ? this.settleStackRotations : this.cardRotations;
+                const offsetsArray = useSnapshots ? this.settleStackOffsets : this.cardOffsets;
+                const darkenArray = useSnapshots ? this.settleStackDarkenFactors : this.cardDarkenFactors;
+
                 // Use only the random offset (no systematic offset to force direction)
-                const pixelOffset = this.cardOffsets[i];
+                const pixelOffset = offsetsArray[i] || { x: 0, y: 0 };
                 const totalOffsetX = pixelOffset.x;
                 const totalOffsetY = pixelOffset.y;
 
@@ -764,16 +771,16 @@ class CardStudyApp {
                 const normalizedOffsetY = (totalOffsetY / window.innerHeight) * 2;
 
                 // Rotation from stored random rotation
-                const rotation = this.cardRotations[i];
+                const rotation = rotationsArray[i] || 0;
 
                 // Scale: all cards same size (100%)
                 const scale = 1.0;
 
                 // Darkening: animate brightness changes when cards move in stack
                 let darkenFactor;
-                if (this.isSettling && i < this.cardDarkenFactors.length && this.cardDarkenFactors[i] !== null) {
+                if (this.isSettling && i < darkenArray.length && darkenArray[i] !== null) {
                     // Animate from old brightness to new brightness (card was in stack before)
-                    const oldDarken = this.cardDarkenFactors[i];
+                    const oldDarken = darkenArray[i];
                     const newDarken = 1.0 - (stackLayer * CONFIG.stackDarkenPerLayer);
                     const eased = Utils.easeOutCubic(this.settleProgress); // Ease out cubic
                     darkenFactor = oldDarken + (newDarken - oldDarken) * eased;
