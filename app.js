@@ -77,9 +77,10 @@ class Utils {
         const sin = Math.sin(rad);
 
         // Simple approach: convert card dimensions directly to normalized device coordinates
-        // Card dimensions are already sized correctly with margin in setupCanvas
-        const scaleX = (cardWidth / canvas.width) * 2 * scale;
-        const scaleY = (cardHeight / canvas.height) * 2 * scale;
+        // Card dimensions are in physical pixels, canvas is in physical pixels
+        // No * 2 needed because we're working in physical pixel space
+        const scaleX = (cardWidth / canvas.width) * scale;
+        const scaleY = (cardHeight / canvas.height) * scale;
 
         return new Float32Array([
             cos * scaleX, sin * scaleX, 0, 0,
@@ -369,11 +370,16 @@ class CardStudyApp {
             const maxWidth = window.innerWidth - (margin * 2);
             const maxHeight = window.innerHeight - (margin * 2);
 
-            // Scale to fit available space, but never larger than natural size (max 1.0)
-            const scaleByWidth = maxWidth / cardWidthCss;
-            const scaleByHeight = maxHeight / cardHeightCss;
-            const scale = Math.min(scaleByWidth, scaleByHeight, 1.0);
-            console.log(`[setupCanvas] scaleByWidth: ${scaleByWidth.toFixed(4)}, scaleByHeight: ${scaleByHeight.toFixed(4)}, chosen scale: ${scale.toFixed(4)}`);
+            // Scale down if card is too large (never scale up beyond natural size)
+            let scale = 1;
+            if (cardWidthCss > maxWidth || cardHeightCss > maxHeight) {
+                const scaleByWidth = maxWidth / cardWidthCss;
+                const scaleByHeight = maxHeight / cardHeightCss;
+                scale = Math.min(scaleByWidth, scaleByHeight);
+                console.log(`[setupCanvas] Card too large, scaling down: ${scale.toFixed(4)}`);
+            } else {
+                console.log(`[setupCanvas] Card fits, keeping natural size (scale: 1.0)`);
+            }
 
             // Store card dimensions in PHYSICAL pixels (WebGPU renders in physical pixels)
             this.cardWidth = cardWidthCss * scale * dpi;
