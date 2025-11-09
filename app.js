@@ -369,10 +369,12 @@ class CardStudyApp {
             const maxWidth = window.innerWidth - (margin * 2);
             const maxHeight = window.innerHeight - (margin * 2);
 
-            let scale = 1;
-            if (cardWidthCss > maxWidth || cardHeightCss > maxHeight) {
-                scale = Math.min(maxWidth / cardWidthCss, maxHeight / cardHeightCss);
-            }
+            // ALWAYS scale to fit the available space with margin
+            const scaleByWidth = maxWidth / cardWidthCss;
+            const scaleByHeight = maxHeight / cardHeightCss;
+            const scale = Math.min(scaleByWidth, scaleByHeight);
+
+            console.log(`[setupCanvas] scaleByWidth: ${scaleByWidth.toFixed(4)}, scaleByHeight: ${scaleByHeight.toFixed(4)}, chosen scale: ${scale.toFixed(4)}`);
 
             // Store card dimensions in CSS pixels (DPI conversion happens in transform matrix)
             this.cardWidth = cardWidthCss * scale;
